@@ -1,4 +1,4 @@
-import { percentile, RollingWindow } from "./metrics";
+import { RollingWindow, percentile } from "./metrics";
 import { mulberry32 } from "./rng";
 import type { SimConfig, SimState, SystemGraph } from "./types";
 

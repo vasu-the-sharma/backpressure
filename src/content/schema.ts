@@ -1,5 +1,5 @@
-import { z } from "zod";
 import type { SystemGraph } from "@/sim/types";
+import { z } from "zod";
 
 /**
  * Content lives in the repo as typed data, validated by these schemas at build
@@ -68,9 +68,7 @@ export const challengeSchema = z.object({
 });
 
 export const systemSchema = z.object({
-  slug: z
-    .string()
-    .regex(/^[a-z0-9-]+$/, "slug must be kebab-case (a-z, 0-9, hyphen)"),
+  slug: z.string().regex(/^[a-z0-9-]+$/, "slug must be kebab-case (a-z, 0-9, hyphen)"),
   name: z.string().min(1),
   icon: z.string().optional(),
   category: z.string().min(1),
