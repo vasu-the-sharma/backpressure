@@ -1,5 +1,5 @@
 {
-  "name": "system-design-lab",
+  "name": "backpressure",
   "version": "0.1.0",
   "private": true,
   "description": "Interactive, honest models of how large-scale systems behave under load.",

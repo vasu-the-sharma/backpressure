@@ -1,11 +1,13 @@
-# System Design Lab
+# Backpressure
 
 Interactive, honest models of how large-scale systems behave under load. Open a
 system, send it traffic, take a node down, scale it, and watch throughput, tail
 latency, and the bottleneck respond in real time.
 
-> Working title. `system-design-lab` is a placeholder; rename to your own brand
-> before publishing.
+> **Backpressure** is the term for a loaded system pushing back on its upstream
+> producers — the queue depth climbing until a stage can take no more. That is
+> exactly what these models let you watch happen, which is where the name comes
+> from.
 
 ## What it is
 
