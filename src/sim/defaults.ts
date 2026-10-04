@@ -84,7 +84,7 @@ export const NODE_DEFAULTS: Record<NodeKind, KindDefault> = {
 };
 
 /** Build a validated-shape SimNode from a kind, id, and replica count. */
-export function makeNode(kind: NodeKind, id: string, replicas = 1): SimNode {
+export function makeNode(kind: NodeKind, id: string, replicas = 1, fanout = 1): SimNode {
   const d = NODE_DEFAULTS[kind];
   const node: SimNode = {
     id,
@@ -96,5 +96,6 @@ export function makeNode(kind: NodeKind, id: string, replicas = 1): SimNode {
     baseLatencyMs: d.baseLatencyMs,
   };
   if (d.cacheHitRatio !== undefined) node.cacheHitRatio = d.cacheHitRatio;
+  if (fanout > 1) node.fanout = Math.floor(fanout);
   return node;
 }

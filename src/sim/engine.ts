@@ -174,8 +174,24 @@ export class SimEngine {
           this.inFlight -= 1;
         } else {
           const nextRt = this.runtimeById.get(nextId);
-          if (nextRt) nextRt.incoming.push(req);
-          else this.inFlight -= 1;
+          if (nextRt) {
+            nextRt.incoming.push(req);
+            // Fan-out: this node emits extra copies downstream (write/read
+            // amplification). One inbound request becomes `fanout` downstream.
+            const fanout = def.fanout && def.fanout > 1 ? Math.floor(def.fanout) : 1;
+            for (let f = 1; f < fanout; f++) {
+              nextRt.incoming.push({
+                id: this.nextRequestId++,
+                path: req.path,
+                hop: req.hop,
+                bornTick: req.bornTick,
+                processingMs: req.processingMs,
+              });
+              this.inFlight += 1;
+            }
+          } else {
+            this.inFlight -= 1;
+          }
         }
       }
 

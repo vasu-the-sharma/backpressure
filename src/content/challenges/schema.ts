@@ -19,6 +19,9 @@ export interface Challenge {
   palette: NodeKind[];
   /** Kinds that must appear on the path from the entry for a valid submission. */
   requiredKinds?: NodeKind[];
+  /** In this scenario, nodes of this kind fan each request out by `fanoutFactor`. */
+  fanoutKind?: NodeKind;
+  fanoutFactor?: number;
   load: LoadProfile;
   slo: SloTarget;
   /** Optional nudge, revealed on demand. */

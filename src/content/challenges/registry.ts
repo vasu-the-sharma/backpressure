@@ -2,8 +2,14 @@ import { latencyBudget } from "./latency-budget";
 import type { Challenge } from "./schema";
 import { uberSurgeMatching } from "./uber-surge-matching";
 import { urlShortenerReads } from "./url-shortener-reads";
+import { xTimelineFanout } from "./x-timeline-fanout";
 
-const challenges: Challenge[] = [urlShortenerReads, uberSurgeMatching, latencyBudget];
+const challenges: Challenge[] = [
+  urlShortenerReads,
+  uberSurgeMatching,
+  latencyBudget,
+  xTimelineFanout,
+];
 
 const bySlug = new Map<string, Challenge>(challenges.map((c) => [c.slug, c]));
 

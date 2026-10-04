@@ -32,6 +32,8 @@ interface DesignData extends Record<string, unknown> {
   label: string;
   replicas: number;
   isEntry: boolean;
+  /** Fan-out factor baked in by the scenario (>1 means this node amplifies). */
+  fanout?: number;
   util?: number;
   isBottleneck?: boolean;
 }
@@ -117,6 +119,20 @@ function DesignNodeView({ id, data, selected }: NodeProps<DesignNode>) {
         </span>
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-fg">{data.label}</span>
         {data.replicas > 1 && <span className="replica-pill">×{data.replicas}</span>}
+        {data.fanout && data.fanout > 1 && (
+          <span
+            className="shrink-0 rounded font-mono text-[10px]"
+            style={{
+              color: "var(--color-warn)",
+              background: "color-mix(in srgb, var(--color-warn) 14%, transparent)",
+              border: "1px solid color-mix(in srgb, var(--color-warn) 32%, transparent)",
+              padding: "1px 4px",
+            }}
+            title="This node fans each request out downstream"
+          >
+            fan ×{data.fanout}
+          </span>
+        )}
       </div>
 
       <div className="mt-1 flex items-center justify-between">
@@ -240,15 +256,19 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
       const id = `${kind}-${counter.current}`;
       setNodes((ns) => {
         const maxX = ns.reduce((m, n) => Math.max(m, n.position.x), 0);
+        const fanout =
+          kind === challenge.fanoutKind && challenge.fanoutFactor
+            ? challenge.fanoutFactor
+            : undefined;
         return ns.concat({
           id,
           type: "design",
           position: { x: maxX + 210, y: 170 },
-          data: { kind, label: NODE_DEFAULTS[kind].label, replicas: 1, isEntry: false },
+          data: { kind, label: NODE_DEFAULTS[kind].label, replicas: 1, isEntry: false, fanout },
         });
       });
     },
-    [setNodes, clearScore],
+    [setNodes, clearScore, challenge],
   );
 
   const changeReplicas = useCallback(
@@ -289,7 +309,9 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
 
   const run = useCallback(() => {
     const graph: SystemGraph = {
-      nodes: nodes.map((node) => makeNode(node.data.kind, node.id, node.data.replicas)),
+      nodes: nodes.map((node) =>
+        makeNode(node.data.kind, node.id, node.data.replicas, node.data.fanout ?? 1),
+      ),
       edges: edges.map((e) => ({ from: e.source, to: e.target })),
       entryId: "client",
     };
