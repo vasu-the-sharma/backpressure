@@ -153,3 +153,88 @@ describe("SimEngine scaling", () => {
     expect(after.qps).toBeGreaterThan(before.qps);
   });
 });
+
+/**
+ * client -> write service (fan-out F) -> timeline store.
+ * The service has ample capacity; `fanout` multiplies the load that reaches the
+ * store, modelling fan-out-on-write amplification.
+ */
+function fanoutGraph(fanout: number, dbCapacity = 100): SystemGraph {
+  return {
+    entryId: "client",
+    nodes: [
+      {
+        id: "client",
+        kind: "client",
+        label: "Client",
+        capacityPerTick: 100_000,
+        replicas: 1,
+        queueMax: 1_000_000,
+        baseLatencyMs: 1,
+      },
+      {
+        id: "svc",
+        kind: "service",
+        label: "Write service",
+        capacityPerTick: 100_000,
+        replicas: 1,
+        queueMax: 100_000,
+        baseLatencyMs: 2,
+        fanout,
+      },
+      {
+        id: "db",
+        kind: "db",
+        label: "Timeline store",
+        capacityPerTick: dbCapacity,
+        replicas: 1,
+        queueMax: 5_000,
+        baseLatencyMs: 5,
+      },
+    ],
+    edges: [
+      { from: "client", to: "svc" },
+      { from: "svc", to: "db" },
+    ],
+  };
+}
+
+describe("SimEngine fan-out", () => {
+  it("amplifies downstream load by the fanout factor", () => {
+    const snapFor = (fanout: number) => {
+      const engine = new SimEngine(fanoutGraph(fanout, 100), {
+        arrivalRatePerTick: 50,
+        tickMs: TICK_MS,
+        seed: 5,
+      });
+      engine.run(400);
+      return engine.snapshot();
+    };
+
+    const none = snapFor(1); // store sees ~50/tick against cap 100 — healthy
+    const heavy = snapFor(5); // store sees ~250/tick against cap 100 — overloaded
+
+    expect(none.errorRate).toBeLessThan(0.02);
+    expect(heavy.errorRate).toBeGreaterThan(0.3);
+    // the store completes more work when fanned (it is saturated), proving the
+    // amplification actually reached it.
+    expect(heavy.qps).toBeGreaterThan(none.qps);
+  });
+
+  it("stays deterministic with fan-out", () => {
+    const run = () => {
+      const engine = new SimEngine(fanoutGraph(8, 200), {
+        arrivalRatePerTick: 40,
+        tickMs: TICK_MS,
+        seed: 21,
+      });
+      engine.run(300);
+      return engine.snapshot();
+    };
+    const a = run();
+    const b = run();
+    expect(b.qps).toBe(a.qps);
+    expect(b.errorRate).toBe(a.errorRate);
+    expect(b.p99Ms).toBe(a.p99Ms);
+  });
+});

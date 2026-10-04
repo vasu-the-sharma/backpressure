@@ -37,6 +37,13 @@ export interface SimNode {
    * how the cache-aside read path is modelled.
    */
   cacheHitRatio?: number;
+  /**
+   * Requests emitted downstream per request this node forwards. >1 models
+   * fan-out / write amplification: one inbound request (e.g. a tweet) becomes
+   * `fanout` downstream requests (e.g. one write per follower timeline).
+   * Defaults to 1 (no amplification).
+   */
+  fanout?: number;
   /** When true the node serves nothing; its queue fills and overflows. Models an outage. */
   down?: boolean;
 }
