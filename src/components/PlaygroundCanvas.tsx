@@ -16,6 +16,7 @@ import {
   addEdge,
   useEdgesState,
   useNodesState,
+  useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { KindIcon } from "@/components/icons";
@@ -53,7 +54,42 @@ function utilColor(util: number, isBottleneck: boolean): string {
 }
 
 const handleClass =
-  "!h-2.5 !w-2.5 !border-2 !border-[var(--color-ink)] !bg-[var(--color-brand-bright)]";
+  "!h-3.5 !w-3.5 !border-2 !border-[var(--color-ink)] !bg-[var(--color-brand-bright)] transition-transform hover:!scale-125";
+
+/** Arrange nodes left-to-right by their depth from the entry (a tidy layered layout). */
+function layoutGraph(nodes: DesignNode[], edges: Edge[]): DesignNode[] {
+  const children = new Map<string, string[]>();
+  for (const n of nodes) children.set(n.id, []);
+  for (const e of edges) children.get(e.source)?.push(e.target);
+
+  const depth = new Map<string, number>();
+  const queue: string[] = [];
+  if (nodes.some((n) => n.id === "client")) {
+    depth.set("client", 0);
+    queue.push("client");
+  }
+  while (queue.length > 0) {
+    const id = queue.shift() as string;
+    const d = depth.get(id) ?? 0;
+    for (const c of children.get(id) ?? []) {
+      if (!depth.has(c)) {
+        depth.set(c, d + 1);
+        queue.push(c);
+      }
+    }
+  }
+  let maxDepth = 0;
+  for (const d of depth.values()) maxDepth = Math.max(maxDepth, d);
+  for (const n of nodes) if (!depth.has(n.id)) depth.set(n.id, maxDepth + 1);
+
+  const rowByDepth = new Map<number, number>();
+  return nodes.map((n) => {
+    const d = depth.get(n.id) ?? 0;
+    const row = rowByDepth.get(d) ?? 0;
+    rowByDepth.set(d, row + 1);
+    return { ...n, position: { x: 40 + d * 210, y: 110 + row * 120 } };
+  });
+}
 
 function DesignNodeView({ id, data, selected }: NodeProps<DesignNode>) {
   const { changeReplicas, removeNode } = useContext(ActionsContext);
@@ -158,6 +194,14 @@ function entryNode(): DesignNode {
   };
 }
 
+function markSolved(slug: string) {
+  try {
+    localStorage.setItem(`bp.solved.${slug}`, "1");
+  } catch {
+    // storage unavailable — the solved badge is a convenience, not required.
+  }
+}
+
 function CanvasInner({ challenge }: { challenge: Challenge }) {
   const [nodes, setNodes, onNodesChange] = useNodesState<DesignNode>([entryNode()]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
@@ -165,6 +209,7 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
   const [errors, setErrors] = useState<string[]>([]);
   const [showHint, setShowHint] = useState(false);
   const counter = useRef(0);
+  const { fitView } = useReactFlow();
 
   const clearScore = useCallback(() => {
     setResult(null);
@@ -192,16 +237,16 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
     (kind: NodeKind) => {
       clearScore();
       counter.current += 1;
-      const n = counter.current;
-      const id = `${kind}-${n}`;
-      setNodes((ns) =>
-        ns.concat({
+      const id = `${kind}-${counter.current}`;
+      setNodes((ns) => {
+        const maxX = ns.reduce((m, n) => Math.max(m, n.position.x), 0);
+        return ns.concat({
           id,
           type: "design",
-          position: { x: 40 + n * 210, y: 170 + (n % 2) * 70 },
+          position: { x: maxX + 210, y: 170 },
           data: { kind, label: NODE_DEFAULTS[kind].label, replicas: 1, isEntry: false },
-        }),
-      );
+        });
+      });
     },
     [setNodes, clearScore],
   );
@@ -228,6 +273,11 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
     },
     [setNodes, setEdges, clearScore],
   );
+
+  const tidy = useCallback(() => {
+    setNodes((ns) => layoutGraph(ns, edges));
+    requestAnimationFrame(() => fitView({ padding: 0.2, duration: 300 }));
+  }, [setNodes, edges, fitView]);
 
   const resetCanvas = useCallback(() => {
     counter.current = 0;
@@ -266,6 +316,7 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
       }),
     );
     setResult(res);
+    if (res.pass) markSolved(challenge.slug);
   }, [nodes, edges, challenge, setNodes]);
 
   return (
@@ -281,6 +332,7 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
             nodeTypes={nodeTypes}
             colorMode="dark"
             fitView
+            connectionRadius={30}
             defaultEdgeOptions={{
               type: "smoothstep",
               style: { stroke: "var(--color-edge-strong)", strokeWidth: 1.5 },
@@ -306,6 +358,10 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
                     {NODE_DEFAULTS[kind].label}
                   </button>
                 ))}
+                <span aria-hidden className="mx-0.5 h-5 w-px bg-edge" />
+                <button type="button" onClick={tidy} className="btn btn-secondary btn-xs">
+                  Tidy
+                </button>
               </div>
             </Panel>
           </ReactFlow>
@@ -370,7 +426,7 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
           </div>
         )}
 
-        {result && <Results result={result} />}
+        {result && <Results result={result} solution={challenge.solution} />}
 
         <button
           type="button"
@@ -387,7 +443,7 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
   );
 }
 
-function Results({ result }: { result: ScoreResult }) {
+function Results({ result, solution }: { result: ScoreResult; solution?: string }) {
   const verdictColor = result.pass ? "var(--color-healthy)" : "var(--color-danger)";
   return (
     <div className="rounded-lg border border-edge bg-raised p-3">
@@ -420,6 +476,14 @@ function Results({ result }: { result: ScoreResult }) {
           </li>
         ))}
       </ul>
+      {result.pass && solution && (
+        <div className="mt-3 border-t border-edge pt-3">
+          <p className="eyebrow mb-1.5" style={{ color: "var(--color-healthy)" }}>
+            Reference approach
+          </p>
+          <p className="text-xs leading-relaxed text-fg-muted">{solution}</p>
+        </div>
+      )}
     </div>
   );
 }

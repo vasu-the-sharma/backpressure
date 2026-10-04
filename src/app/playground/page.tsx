@@ -1,3 +1,4 @@
+import { SolvedBadge } from "@/components/SolvedBadge";
 import { getAllChallenges } from "@/content/challenges/registry";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -47,7 +48,10 @@ export default function PlaygroundIndex() {
               <h3 className="text-lg font-semibold tracking-[-0.01em] text-fg transition-colors group-hover:text-brand-bright">
                 {c.title}
               </h3>
-              <span className="badge shrink-0">{c.company}</span>
+              <div className="flex shrink-0 items-center gap-2">
+                <SolvedBadge slug={c.slug} />
+                <span className="badge">{c.company}</span>
+              </div>
             </div>
             <p className="mt-3 text-sm leading-relaxed text-fg-muted">{c.prompt}</p>
             <span className="mt-4 inline-flex items-center gap-1.5 text-[13px] font-medium text-brand-bright">

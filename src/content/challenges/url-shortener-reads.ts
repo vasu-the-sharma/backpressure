@@ -26,4 +26,6 @@ export const urlShortenerReads: Challenge = {
   load: { label: "20k rps reads", arrivalRatePerTick: ratePerTickFromRps(20_000), seed: 1 },
   slo: { p99Ms: 700, maxErrorRate: 0.01, minThroughputRps: 19_000 },
   hint: "A bare client → service → database path buries the database. Put a cache in front of it, and give the service enough replicas to absorb the offered load.",
+  solution:
+    "Client → Load Balancer → Service (×2) → Cache → Database. The service needs a second replica to absorb ~20k reads/sec, and the cache serves ~90% of lookups so the database only handles the misses instead of collapsing under the full read load.",
 };

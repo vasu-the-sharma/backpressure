@@ -23,4 +23,6 @@ export interface Challenge {
   slo: SloTarget;
   /** Optional nudge, revealed on demand. */
   hint?: string;
+  /** The canonical approach, revealed once the design passes. */
+  solution?: string;
 }
