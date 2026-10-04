@@ -295,3 +295,97 @@ describe("SimEngine CDN caching", () => {
     expect(uncached.errorRate).toBeGreaterThan(0.3);
   });
 });
+
+/**
+ * client -> topic -> {subA, subB, subC}. With `publish`, the topic delivers each
+ * event to every subscriber; without it, only the first edge (subA) is used.
+ */
+function pubsubGraph(publish: boolean): SystemGraph {
+  const sub = (id: string) => ({
+    id,
+    kind: "service" as const,
+    label: id,
+    capacityPerTick: 500,
+    replicas: 1,
+    queueMax: 100_000,
+    baseLatencyMs: 2,
+  });
+  return {
+    entryId: "client",
+    nodes: [
+      {
+        id: "client",
+        kind: "client",
+        label: "Client",
+        capacityPerTick: 100_000,
+        replicas: 1,
+        queueMax: 1_000_000,
+        baseLatencyMs: 1,
+      },
+      {
+        id: "topic",
+        kind: "queue",
+        label: "Topic",
+        capacityPerTick: 100_000,
+        replicas: 1,
+        queueMax: 100_000,
+        baseLatencyMs: 1,
+        publish,
+      },
+      sub("subA"),
+      sub("subB"),
+      sub("subC"),
+    ],
+    edges: [
+      { from: "client", to: "topic" },
+      { from: "topic", to: "subA" },
+      { from: "topic", to: "subB" },
+      { from: "topic", to: "subC" },
+    ],
+  };
+}
+
+describe("SimEngine pub-sub", () => {
+  it("a publish node delivers to every subscriber", () => {
+    const snap = (publish: boolean) => {
+      const engine = new SimEngine(pubsubGraph(publish), {
+        arrivalRatePerTick: 100,
+        tickMs: TICK_MS,
+        seed: 9,
+      });
+      engine.run(300);
+      return engine.snapshot();
+    };
+    const util = (s: ReturnType<typeof snap>, id: string) =>
+      s.nodes.find((n) => n.id === id)?.utilization ?? 0;
+
+    const single = snap(false); // only the first edge (subA) carries traffic
+    const broadcast = snap(true); // all three subscribers
+
+    expect(util(single, "subB")).toBe(0);
+    expect(util(single, "subC")).toBe(0);
+
+    expect(util(broadcast, "subA")).toBeGreaterThan(0);
+    expect(util(broadcast, "subB")).toBeGreaterThan(0);
+    expect(util(broadcast, "subC")).toBeGreaterThan(0);
+    // delivering to three subscribers does ~3x the completed work
+    expect(broadcast.qps).toBeGreaterThan(single.qps * 2.5);
+  });
+
+  it("stays deterministic with pub-sub", () => {
+    const run = () => {
+      const engine = new SimEngine(pubsubGraph(true), {
+        arrivalRatePerTick: 80,
+        tickMs: TICK_MS,
+        seed: 17,
+      });
+      engine.run(250);
+      return engine.snapshot();
+    };
+    const a = run();
+    const b = run();
+    expect(b.qps).toBe(a.qps);
+    expect(b.p99Ms).toBe(a.p99Ms);
+    expect(b.errorRate).toBe(a.errorRate);
+  });
+});

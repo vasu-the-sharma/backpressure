@@ -189,6 +189,29 @@ export class SimEngine {
               });
               this.inFlight += 1;
             }
+            // Pub-sub: a publish node delivers to EVERY subscriber, not just the
+            // primary edge. The primary branch continues on `req` above; spawn a
+            // fresh branch (×fanout) from each additional out-edge.
+            if (def.publish) {
+              const outs = this.adjacency.get(rt.id) ?? [];
+              for (let e = 1; e < outs.length; e++) {
+                const subId = outs[e];
+                if (subId === undefined) continue;
+                const subRt = this.runtimeById.get(subId);
+                if (!subRt) continue;
+                const subPath = this.computePath(subId);
+                for (let f = 0; f < fanout; f++) {
+                  subRt.incoming.push({
+                    id: this.nextRequestId++,
+                    path: subPath,
+                    hop: 0,
+                    bornTick: this.tickCount,
+                    processingMs: 0,
+                  });
+                  this.inFlight += 1;
+                }
+              }
+            }
           } else {
             this.inFlight -= 1;
           }
@@ -265,15 +288,16 @@ export class SimEngine {
   // --- internals ----------------------------------------------------------
 
   /**
-   * Walk the graph from the entry node to build one request's path. At a cache
-   * node a seeded coin flip decides a hit (path ends there) or a miss (continue
-   * to the downstream node). Otherwise the primary (first) outgoing edge is
-   * followed. A visited set guards against cycles.
+   * Walk the graph from `start` (the entry node by default) to build one
+   * request's path. At a cache node a seeded coin flip decides a hit (path ends
+   * there) or a miss (continue downstream). Otherwise the primary (first)
+   * outgoing edge is followed. A visited set guards against cycles. A non-entry
+   * `start` is used to build a subscriber branch from a pub-sub node.
    */
-  private computePath(): string[] {
+  private computePath(start: string = this.graph.entryId): string[] {
     const path: string[] = [];
     const visited = new Set<string>();
-    let current: string | undefined = this.graph.entryId;
+    let current: string | undefined = start;
 
     while (current !== undefined && !visited.has(current)) {
       visited.add(current);

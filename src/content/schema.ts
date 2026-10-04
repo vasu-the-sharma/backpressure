@@ -34,6 +34,7 @@ export const simNodeSchema = z.object({
   baseLatencyMs: z.number().nonnegative(),
   cacheHitRatio: z.number().min(0).max(1).optional(),
   fanout: z.number().int().positive().optional(),
+  publish: z.boolean().optional(),
   down: z.boolean().optional(),
 });
 
