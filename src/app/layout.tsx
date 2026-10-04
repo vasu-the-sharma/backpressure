@@ -44,7 +44,20 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
               >
                 <Logo responsive />
               </Link>
-              <span className="badge badge-dot">teaching model, not telemetry</span>
+              <div className="flex items-center gap-5">
+                <nav className="flex items-center gap-4 text-sm">
+                  <Link href="/" className="text-fg-muted transition-colors hover:text-fg">
+                    Systems
+                  </Link>
+                  <Link
+                    href="/playground"
+                    className="text-fg-muted transition-colors hover:text-fg"
+                  >
+                    Playground
+                  </Link>
+                </nav>
+                <span className="badge badge-dot hidden sm:inline-flex">teaching model</span>
+              </div>
             </div>
           </header>
 
