@@ -40,6 +40,16 @@ export const verticals: Vertical[] = [
     status: "beta",
     cta: "Open the playground",
   },
+  {
+    slug: "quiz",
+    name: "Quiz",
+    href: "/quiz",
+    tagline: "Test your instincts",
+    description:
+      "Fast multiple-choice drills on load, caching, fan-out, and bottlenecks. Answer, get the reasoning immediately, and sharpen the instincts the simulator is built to train.",
+    status: "beta",
+    cta: "Take a quiz",
+  },
 ];
 
 /** The verticals that are navigable today (anything not "soon"). */

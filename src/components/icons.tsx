@@ -166,6 +166,17 @@ const VERTICAL_GLYPH: Record<string, ReactNode> = {
       <path d="M7.7 11 15.8 7.3M7.6 12.9 14.9 16.7" />
     </>
   ),
+  // Quiz: multiple-choice rows, the first one selected.
+  quiz: (
+    <>
+      <circle cx="6.5" cy="7.5" r="1.7" fill="currentColor" stroke="none" />
+      <path d="M10.5 7.5h8" />
+      <circle cx="6.5" cy="13" r="1.7" />
+      <path d="M10.5 13h8" />
+      <circle cx="6.5" cy="18.5" r="1.7" />
+      <path d="M10.5 18.5h8" />
+    </>
+  ),
 };
 
 export function VerticalIcon({ slug, size, className }: { slug: string } & IconProps) {

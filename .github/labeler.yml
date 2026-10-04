@@ -1,0 +1,46 @@
+# PR labels applied automatically from the files a PR touches.
+# Consumed by .github/workflows/label.yml (actions/labeler).
+
+engine:
+  - changed-files:
+      - any-glob-to-any-file: "src/sim/**"
+
+content:
+  - changed-files:
+      - any-glob-to-any-file: "src/content/**"
+
+systems:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/app/systems/**"
+          - "src/content/systems/**"
+
+playground:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/app/playground/**"
+          - "src/content/challenges/**"
+          - "src/components/PlaygroundCanvas.tsx"
+
+quiz:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/app/quiz/**"
+          - "src/content/quizzes/**"
+          - "src/components/Quiz*.tsx"
+
+ui:
+  - changed-files:
+      - any-glob-to-any-file:
+          - "src/components/**"
+          - "src/app/layout.tsx"
+          - "src/app/page.tsx"
+          - "src/app/globals.css"
+
+ci:
+  - changed-files:
+      - any-glob-to-any-file: ".github/**"
+
+docs:
+  - changed-files:
+      - any-glob-to-any-file: "**/*.md"
