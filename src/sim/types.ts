@@ -44,6 +44,12 @@ export interface SimNode {
    * Defaults to 1 (no amplification).
    */
   fanout?: number;
+  /**
+   * Pub-sub / topic node: when true, each request it forwards is delivered to
+   * EVERY outgoing edge (all subscribers), not just the primary one. Models a
+   * topic fanning an event out to heterogeneous consumers. Default false.
+   */
+  publish?: boolean;
   /** When true the node serves nothing; its queue fills and overflows. Models an outage. */
   down?: boolean;
 }
