@@ -238,3 +238,60 @@ describe("SimEngine fan-out", () => {
     expect(b.p99Ms).toBe(a.p99Ms);
   });
 });
+
+describe("SimEngine CDN caching", () => {
+  it("a CDN node with a hit ratio shields the downstream origin", () => {
+    const graph = (withCdn: boolean): SystemGraph => ({
+      entryId: "client",
+      nodes: [
+        {
+          id: "client",
+          kind: "client",
+          label: "Client",
+          capacityPerTick: 100_000,
+          replicas: 1,
+          queueMax: 1_000_000,
+          baseLatencyMs: 1,
+        },
+        {
+          id: "edge",
+          kind: "cdn",
+          label: "CDN",
+          capacityPerTick: 100_000,
+          replicas: 1,
+          queueMax: 100_000,
+          baseLatencyMs: 2,
+          ...(withCdn ? { cacheHitRatio: 0.9 } : {}),
+        },
+        {
+          id: "db",
+          kind: "db",
+          label: "Origin",
+          capacityPerTick: 60,
+          replicas: 1,
+          queueMax: 2_000,
+          baseLatencyMs: 5,
+        },
+      ],
+      edges: [
+        { from: "client", to: "edge" },
+        { from: "edge", to: "db" },
+      ],
+    });
+    const snap = (withCdn: boolean) => {
+      const engine = new SimEngine(graph(withCdn), {
+        arrivalRatePerTick: 100,
+        tickMs: TICK_MS,
+        seed: 4,
+      });
+      engine.run(400);
+      return engine.snapshot();
+    };
+
+    const cached = snap(true); // ~90% served at the CDN; ~10/tick reach the origin (cap 60)
+    const uncached = snap(false); // all 100/tick reach the origin (cap 60) — overloaded
+
+    expect(cached.errorRate).toBeLessThan(0.02);
+    expect(uncached.errorRate).toBeGreaterThan(0.3);
+  });
+});
