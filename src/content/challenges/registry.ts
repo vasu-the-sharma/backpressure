@@ -2,6 +2,7 @@ import { latencyBudget } from "./latency-budget";
 import type { Challenge } from "./schema";
 import { uberSurgeMatching } from "./uber-surge-matching";
 import { urlShortenerReads } from "./url-shortener-reads";
+import { whatsappGroupFanout } from "./whatsapp-group-fanout";
 import { xTimelineFanout } from "./x-timeline-fanout";
 
 const challenges: Challenge[] = [
@@ -9,6 +10,7 @@ const challenges: Challenge[] = [
   uberSurgeMatching,
   latencyBudget,
   xTimelineFanout,
+  whatsappGroupFanout,
 ];
 
 const bySlug = new Map<string, Challenge>(challenges.map((c) => [c.slug, c]));

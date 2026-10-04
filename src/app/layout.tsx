@@ -1,4 +1,5 @@
 import { Logo, LogoMark } from "@/components/Logo";
+import { liveVerticals } from "@/content/verticals";
 import type { Metadata } from "next";
 import { Inter, JetBrains_Mono, Space_Grotesk } from "next/font/google";
 import Link from "next/link";
@@ -46,15 +47,15 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
               </Link>
               <div className="flex items-center gap-5">
                 <nav className="flex items-center gap-4 text-sm">
-                  <Link href="/" className="text-fg-muted transition-colors hover:text-fg">
-                    Systems
-                  </Link>
-                  <Link
-                    href="/playground"
-                    className="text-fg-muted transition-colors hover:text-fg"
-                  >
-                    Playground
-                  </Link>
+                  {liveVerticals.map((v) => (
+                    <Link
+                      key={v.slug}
+                      href={v.href}
+                      className="text-fg-muted transition-colors hover:text-fg"
+                    >
+                      {v.name}
+                    </Link>
+                  ))}
                 </nav>
                 <span className="badge badge-dot hidden sm:inline-flex">teaching model</span>
               </div>

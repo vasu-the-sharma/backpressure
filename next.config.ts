@@ -9,6 +9,13 @@ const nextConfig: NextConfig = {
     // Linting is handled by Biome, not ESLint.
     ignoreDuringBuilds: true,
   },
+  // The system catalog moved from /products to /systems; keep old links working.
+  async redirects() {
+    return [
+      { source: "/products", destination: "/systems", permanent: true },
+      { source: "/products/:slug", destination: "/systems/:slug", permanent: true },
+    ];
+  },
 };
 
 export default nextConfig;

@@ -283,8 +283,10 @@ export class SimEngine {
       const outs: string[] = this.adjacency.get(current) ?? [];
       if (outs.length === 0) break;
 
-      if (def && def.kind === "cache" && def.cacheHitRatio !== undefined) {
-        if (this.rng() < def.cacheHitRatio) break; // cache hit: served here.
+      // A cache or CDN node with a hit ratio serves a fraction of requests
+      // itself; on a hit the path ends here instead of reaching downstream.
+      if (def && (def.kind === "cache" || def.kind === "cdn") && def.cacheHitRatio !== undefined) {
+        if (this.rng() < def.cacheHitRatio) break;
       }
 
       current = outs[0];

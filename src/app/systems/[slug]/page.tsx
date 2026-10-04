@@ -64,7 +64,7 @@ export default async function ProductPage({ params }: PageProps) {
   return (
     <article>
       <nav className="mb-6 flex items-center gap-2 text-sm text-fg-subtle">
-        <Link href="/" className="transition-colors hover:text-fg">
+        <Link href="/systems" className="transition-colors hover:text-fg">
           Systems
         </Link>
         <span aria-hidden className="opacity-50">
