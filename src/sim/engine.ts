@@ -53,6 +53,7 @@ export class SimEngine {
   private readonly runtimeById: Map<string, NodeRuntime>;
   private readonly window: RollingWindow;
 
+  private readonly requestBytes: number;
   private rng: () => number;
   private arrivalRatePerTick: number;
   private nextRequestId = 0;
@@ -62,10 +63,12 @@ export class SimEngine {
   constructor(graph: SystemGraph, config: SimConfig) {
     this.graph = graph;
     this.config = {
-      windowTicks: config.windowTicks ?? DEFAULT_WINDOW_TICKS,
       ...config,
+      windowTicks: config.windowTicks ?? DEFAULT_WINDOW_TICKS,
+      requestBytes: config.requestBytes ?? 1,
     };
     this.arrivalRatePerTick = config.arrivalRatePerTick;
+    this.requestBytes = Math.max(1, config.requestBytes ?? 1);
     this.rng = mulberry32(config.seed);
     this.window = new RollingWindow(this.config.windowTicks);
 
@@ -159,7 +162,19 @@ export class SimEngine {
       const def = this.nodeDefs.get(rt.id);
       if (!def) continue;
       const capacity = def.down ? 0 : def.capacityPerTick * def.replicas;
-      const served = Math.min(capacity, rt.queue.length);
+      // Streaming / bandwidth: a node with a byte budget is bandwidth-bound, so
+      // it serves at most `floor(bandwidth / requestBytes)` requests this tick —
+      // whichever of request-count and bandwidth binds first. Absent
+      // `bandwidthPerTick` leaves the effective capacity at the count limit, so
+      // every non-streaming node behaves exactly as before.
+      const effectiveCapacity =
+        def.bandwidthPerTick !== undefined && !def.down
+          ? Math.min(
+              capacity,
+              Math.floor((def.bandwidthPerTick * def.replicas) / this.requestBytes),
+            )
+          : capacity;
+      const served = Math.min(effectiveCapacity, rt.queue.length);
 
       for (let i = 0; i < served; i++) {
         const req = rt.queue.shift();
@@ -218,7 +233,19 @@ export class SimEngine {
         }
       }
 
-      const util = capacity > 0 ? served / capacity : 0;
+      // Utilization is measured against the binding constraint, so a
+      // bandwidth-saturated node reads as the bottleneck even with spare request
+      // headroom. When a node's byte budget is smaller than a single request its
+      // effective capacity floors to 0: a live node with queued demand it cannot
+      // serve is fully saturated (util 1), not idle — otherwise the most-broken
+      // node would read as 0% and the bottleneck would be mis-blamed upstream.
+      // Down nodes stay 0 (and are excluded from bottleneck selection anyway).
+      const util =
+        effectiveCapacity > 0
+          ? served / effectiveCapacity
+          : def.down || rt.queue.length === 0
+            ? 0
+            : 1;
       rt.emaUtil = rt.emaUtil + EMA_ALPHA * (util - rt.emaUtil);
     }
 

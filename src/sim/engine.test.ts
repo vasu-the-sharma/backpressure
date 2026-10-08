@@ -389,3 +389,208 @@ describe("SimEngine pub-sub", () => {
     expect(b.errorRate).toBe(a.errorRate);
   });
 });
+
+/**
+ * client -> origin, where the origin is bandwidth-bound: it can push
+ * `bandwidthPerTick` bytes per tick, so with a large `requestBytes` it serves
+ * far fewer requests than its generous request-count capacity would allow. This
+ * is the streaming/media regime — throughput is gated by bytes, not request count.
+ */
+function streamingGraph(originBandwidthPerTick: number): SystemGraph {
+  return {
+    entryId: "client",
+    nodes: [
+      {
+        id: "client",
+        kind: "client",
+        label: "Client",
+        capacityPerTick: 100_000,
+        replicas: 1,
+        queueMax: 1_000_000,
+        baseLatencyMs: 1,
+      },
+      {
+        id: "origin",
+        kind: "storage",
+        label: "Origin",
+        capacityPerTick: 100_000, // request-count is deliberately NOT the binding constraint
+        replicas: 1,
+        queueMax: 2_000,
+        baseLatencyMs: 5,
+        bandwidthPerTick: originBandwidthPerTick,
+      },
+    ],
+    edges: [{ from: "client", to: "origin" }],
+  };
+}
+
+describe("SimEngine streaming bandwidth", () => {
+  it("serves bandwidth/requestBytes requests per tick, not the count capacity", () => {
+    // origin bandwidth 50_000 B/tick; at 1_000 B/request that is only 50 req/tick,
+    // far below its 100_000 request-count capacity.
+    const snap = (requestBytes: number) => {
+      const engine = new SimEngine(streamingGraph(50_000), {
+        arrivalRatePerTick: 100, // offered load well above the 50/tick byte budget
+        tickMs: TICK_MS,
+        seed: 8,
+        requestBytes,
+      });
+      engine.run(400);
+      return engine.snapshot();
+    };
+
+    const small = snap(1); // 50_000 req/tick budget — count capacity binds, healthy
+    const large = snap(1_000); // 50 req/tick budget — bandwidth binds, overloaded
+    const originUtil = (s: ReturnType<typeof snap>) =>
+      s.nodes.find((n) => n.id === "origin")?.utilization ?? 0;
+
+    expect(small.errorRate).toBeLessThan(0.02);
+    expect(large.errorRate).toBeGreaterThan(0.3);
+    // bandwidth caps completions at ~50/tick => ~500 rps at 10 ticks/s
+    expect(large.qps).toBeLessThan(small.qps);
+    expect(large.qps).toBeGreaterThan(400);
+    expect(large.qps).toBeLessThan(600);
+    // utilization is read against the BINDING (bandwidth) capacity, so the origin
+    // is saturated and named the bottleneck despite huge request-count headroom.
+    expect(large.bottleneckId).toBe("origin");
+    expect(originUtil(large)).toBeGreaterThan(0.9);
+  });
+
+  it("a CDN shields the bandwidth-bound origin by serving most bytes at the edge", () => {
+    const graph = (hitRatio: number): SystemGraph => ({
+      entryId: "client",
+      nodes: [
+        {
+          id: "client",
+          kind: "client",
+          label: "Client",
+          capacityPerTick: 100_000,
+          replicas: 1,
+          queueMax: 1_000_000,
+          baseLatencyMs: 1,
+        },
+        {
+          id: "edge",
+          kind: "cdn",
+          label: "CDN",
+          capacityPerTick: 100_000,
+          replicas: 1,
+          queueMax: 100_000,
+          baseLatencyMs: 2,
+          bandwidthPerTick: 10_000_000, // edge bandwidth is effectively unlimited
+          cacheHitRatio: hitRatio,
+        },
+        {
+          id: "origin",
+          kind: "storage",
+          label: "Origin",
+          capacityPerTick: 100_000,
+          replicas: 1,
+          queueMax: 2_000,
+          baseLatencyMs: 5,
+          bandwidthPerTick: 50_000, // 50 req/tick at 1_000 B/request
+        },
+      ],
+      edges: [
+        { from: "client", to: "edge" },
+        { from: "edge", to: "origin" },
+      ],
+    });
+    const snap = (hitRatio: number) => {
+      const engine = new SimEngine(graph(hitRatio), {
+        arrivalRatePerTick: 100,
+        tickMs: TICK_MS,
+        seed: 6,
+        requestBytes: 1_000,
+      });
+      engine.run(400);
+      return engine.snapshot();
+    };
+
+    const cached = snap(0.9); // ~10 req/tick reach the origin (< 50 budget) — healthy
+    const uncached = snap(0); // all 100 req/tick reach the origin (> 50 budget) — overloaded
+
+    expect(cached.errorRate).toBeLessThan(0.02);
+    expect(uncached.errorRate).toBeGreaterThan(0.3);
+  });
+
+  it("is a no-op when no node declares a bandwidth cap (requestBytes cannot bite)", () => {
+    // Same graph, no bandwidthPerTick anywhere: a huge requestBytes must change
+    // nothing, proving the feature is additive for every pre-existing design.
+    const run = (requestBytes: number) => {
+      const engine = new SimEngine(linearGraph(100), {
+        arrivalRatePerTick: 80,
+        tickMs: TICK_MS,
+        seed: 42,
+        requestBytes,
+      });
+      engine.run(300);
+      return engine.snapshot();
+    };
+    const base = run(1);
+    const huge = run(1_000_000);
+    expect(huge.qps).toBe(base.qps);
+    expect(huge.p99Ms).toBe(base.p99Ms);
+    expect(huge.errorRate).toBe(base.errorRate);
+    expect(huge.bottleneckId).toBe(base.bottleneckId);
+  });
+
+  it("scales the byte budget with replicas", () => {
+    // origin pushes 50_000 B/tick => 50 req/tick at 1_000 B/request, which one
+    // replica cannot keep up with at 100/tick. Two replicas (100_000 B/tick =>
+    // 100 req/tick) absorb it. Guards the `* replicas` factor in the byte budget.
+    const engine = new SimEngine(streamingGraph(50_000), {
+      arrivalRatePerTick: 100,
+      tickMs: TICK_MS,
+      seed: 8,
+      requestBytes: 1_000,
+    });
+    engine.run(400);
+    const one = engine.snapshot();
+    expect(one.errorRate).toBeGreaterThan(0.3);
+
+    engine.setReplicas("origin", 2); // effective bandwidth 100_000 B/tick => 100 req/tick
+    engine.run(400);
+    const two = engine.snapshot();
+    expect(two.errorRate).toBeLessThan(0.05);
+    expect(two.qps).toBeGreaterThan(one.qps);
+  });
+
+  it("flags a byte-starved node (budget below one request) as the saturated bottleneck", () => {
+    // The origin can push 500_000 B/tick but each request is 1_000_000 B, so it
+    // cannot serve even one request per tick and drops everything. It must still
+    // read as the saturated bottleneck — not leave the healthy client to be blamed.
+    const engine = new SimEngine(streamingGraph(500_000), {
+      arrivalRatePerTick: 100,
+      tickMs: TICK_MS,
+      seed: 8,
+      requestBytes: 1_000_000,
+    });
+    engine.run(400);
+    const s = engine.snapshot();
+    const originUtil = s.nodes.find((n) => n.id === "origin")?.utilization ?? 0;
+
+    expect(s.errorRate).toBeGreaterThan(0.9);
+    expect(s.qps).toBe(0);
+    expect(s.bottleneckId).toBe("origin");
+    expect(originUtil).toBeGreaterThan(0.9);
+  });
+
+  it("stays deterministic with a bandwidth cap", () => {
+    const run = () => {
+      const engine = new SimEngine(streamingGraph(50_000), {
+        arrivalRatePerTick: 100,
+        tickMs: TICK_MS,
+        seed: 13,
+        requestBytes: 1_000,
+      });
+      engine.run(300);
+      return engine.snapshot();
+    };
+    const a = run();
+    const b = run();
+    expect(b.qps).toBe(a.qps);
+    expect(b.p99Ms).toBe(a.p99Ms);
+    expect(b.errorRate).toBe(a.errorRate);
+  });
+});
