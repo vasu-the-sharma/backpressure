@@ -17,6 +17,12 @@ export interface LoadProfile {
   /** Mean requests admitted per tick at the entry node. */
   arrivalRatePerTick: number;
   seed: number;
+  /**
+   * Bytes per request for this workload. Only bites at nodes that declare a
+   * `bandwidthPerTick` cap (streaming / media). Omit for request-count-only
+   * workloads — the engine defaults it to 1.
+   */
+  requestBytes?: number;
 }
 
 export interface SloTarget {
@@ -61,6 +67,7 @@ export function runDesign(
     arrivalRatePerTick: load.arrivalRatePerTick,
     tickMs: TICK_MS,
     seed: load.seed,
+    requestBytes: load.requestBytes,
   });
   engine.run(ticks);
   return engine.snapshot();

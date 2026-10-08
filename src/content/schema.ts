@@ -35,6 +35,7 @@ export const simNodeSchema = z.object({
   cacheHitRatio: z.number().min(0).max(1).optional(),
   fanout: z.number().int().positive().optional(),
   publish: z.boolean().optional(),
+  bandwidthPerTick: z.number().positive().optional(),
   down: z.boolean().optional(),
 });
 

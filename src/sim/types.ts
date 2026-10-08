@@ -50,6 +50,15 @@ export interface SimNode {
    * topic fanning an event out to heterogeneous consumers. Default false.
    */
   publish?: boolean;
+  /**
+   * Streaming / bandwidth cap: bytes one replica can push per tick (effective
+   * bandwidth = bandwidthPerTick * replicas). Serving media is bandwidth-bound,
+   * not request-bound, so this node serves at most
+   * `floor(bandwidth / requestBytes)` requests per tick — whichever of bandwidth
+   * and `capacityPerTick` binds first. Absent means bandwidth is not modelled
+   * (request-count limited only), which is every non-streaming node.
+   */
+  bandwidthPerTick?: number;
   /** When true the node serves nothing; its queue fills and overflows. Models an outage. */
   down?: boolean;
 }
@@ -75,6 +84,12 @@ export interface SimConfig {
   seed: number;
   /** Rolling window (in ticks) used to compute live metrics. Defaults to 50. */
   windowTicks?: number;
+  /**
+   * Bytes carried by each request (the workload's payload size). Only matters at
+   * nodes that declare a `bandwidthPerTick` cap, where it converts bandwidth into
+   * a per-tick request limit. Defaults to 1 (bandwidth effectively unmodelled).
+   */
+  requestBytes?: number;
 }
 
 export interface NodeState {
