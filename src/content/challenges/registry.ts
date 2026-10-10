@@ -4,6 +4,8 @@ import { uberSurgeMatching } from "./uber-surge-matching";
 import { urlShortenerReads } from "./url-shortener-reads";
 import { whatsappGroupFanout } from "./whatsapp-group-fanout";
 import { xTimelineFanout } from "./x-timeline-fanout";
+import { youtubeUploadPubsub } from "./youtube-upload-pubsub";
+import { youtubeViralStream } from "./youtube-viral-stream";
 
 const challenges: Challenge[] = [
   urlShortenerReads,
@@ -11,6 +13,8 @@ const challenges: Challenge[] = [
   latencyBudget,
   xTimelineFanout,
   whatsappGroupFanout,
+  youtubeViralStream,
+  youtubeUploadPubsub,
 ];
 
 const bySlug = new Map<string, Challenge>(challenges.map((c) => [c.slug, c]));

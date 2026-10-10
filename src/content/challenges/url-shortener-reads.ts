@@ -28,4 +28,31 @@ export const urlShortenerReads: Challenge = {
   hint: "A bare client → service → database path buries the database. Put a cache in front of it, and give the service enough replicas to absorb the offered load.",
   solution:
     "Client → Load Balancer → Service (×2) → Cache → Database. The service needs a second replica to absorb ~20k reads/sec, and the cache serves ~90% of lookups so the database only handles the misses instead of collapsing under the full read load.",
+  calibration: {
+    // The trap: the database takes the full read load and caps throughput.
+    naive: {
+      nodes: [
+        { id: "svc", kind: "service" },
+        { id: "db", kind: "db" },
+      ],
+      edges: [
+        ["client", "svc"],
+        ["svc", "db"],
+      ],
+    },
+    reference: {
+      nodes: [
+        { id: "lb", kind: "lb" },
+        { id: "svc", kind: "service", replicas: 2 },
+        { id: "cache", kind: "cache" },
+        { id: "db", kind: "db" },
+      ],
+      edges: [
+        ["client", "lb"],
+        ["lb", "svc"],
+        ["svc", "cache"],
+        ["cache", "db"],
+      ],
+    },
+  },
 };

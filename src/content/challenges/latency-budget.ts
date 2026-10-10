@@ -28,4 +28,27 @@ export const latencyBudget: Challenge = {
   hint: "Each tier adds roughly one hop of latency. A full gateway → LB → service → cache → database chain blows the budget even with zero drops. Serve straight from the cache, with as few hops as you can.",
   solution:
     "Client → Cache. At this load the cache alone has the capacity, and going straight to it keeps the redirect to two hops — well inside the 300 ms budget. Every extra tier here only adds latency.",
+  calibration: {
+    // The trap: the full "proper" chain — zero drops, but too many hops.
+    naive: {
+      nodes: [
+        { id: "gw", kind: "gateway" },
+        { id: "lb", kind: "lb" },
+        { id: "svc", kind: "service" },
+        { id: "cache", kind: "cache" },
+        { id: "db", kind: "db" },
+      ],
+      edges: [
+        ["client", "gw"],
+        ["gw", "lb"],
+        ["lb", "svc"],
+        ["svc", "cache"],
+        ["cache", "db"],
+      ],
+    },
+    reference: {
+      nodes: [{ id: "cache", kind: "cache" }],
+      edges: [["client", "cache"]],
+    },
+  },
 };

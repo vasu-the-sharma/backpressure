@@ -26,4 +26,39 @@ export const uberSurgeMatching: Challenge = {
   hint: "Two tiers saturate before the database does: the gateway and the matching service. Scale both, and put a geo cache in front of the database so it only sees misses.",
   solution:
     "Client → API Gateway (×2) → Load Balancer → Matching service (×2) → Geo cache → Database. The gateway and the matcher each need a second replica to clear the surge, and the cache serves ~90% of lookups so the database only handles the misses.",
+  calibration: {
+    // The trap: a correct topology that nobody scaled for the surge.
+    naive: {
+      nodes: [
+        { id: "gw", kind: "gateway" },
+        { id: "lb", kind: "lb" },
+        { id: "match", kind: "service" },
+        { id: "cache", kind: "cache" },
+        { id: "db", kind: "db" },
+      ],
+      edges: [
+        ["client", "gw"],
+        ["gw", "lb"],
+        ["lb", "match"],
+        ["match", "cache"],
+        ["cache", "db"],
+      ],
+    },
+    reference: {
+      nodes: [
+        { id: "gw", kind: "gateway", replicas: 2 },
+        { id: "lb", kind: "lb" },
+        { id: "match", kind: "service", replicas: 2 },
+        { id: "cache", kind: "cache" },
+        { id: "db", kind: "db" },
+      ],
+      edges: [
+        ["client", "gw"],
+        ["gw", "lb"],
+        ["lb", "match"],
+        ["match", "cache"],
+        ["cache", "db"],
+      ],
+    },
+  },
 };
