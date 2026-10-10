@@ -1,3 +1,4 @@
+import { Fifo } from "./fifo";
 import { RollingWindow, percentile } from "./metrics";
 import { mulberry32 } from "./rng";
 import type { SimConfig, SimState, SystemGraph } from "./types";
@@ -18,7 +19,7 @@ interface SimRequest {
 interface NodeRuntime {
   id: string;
   /** Requests waiting to be served this/next tick. */
-  queue: SimRequest[];
+  queue: Fifo<SimRequest>;
   /** Requests that arrived this tick (served no earlier than next tick). */
   incoming: SimRequest[];
   /** Smoothed utilization in 0..1, exponential moving average. */
@@ -83,7 +84,7 @@ export class SimEngine {
 
     this.runtimes = graph.nodes.map((n) => ({
       id: n.id,
-      queue: [],
+      queue: new Fifo<SimRequest>(),
       incoming: [],
       emaUtil: 0,
     }));
@@ -113,7 +114,7 @@ export class SimEngine {
   /** Reset to an empty system while keeping the current graph mutations. */
   reset(): void {
     for (const rt of this.runtimes) {
-      rt.queue.length = 0;
+      rt.queue.clear();
       rt.incoming.length = 0;
       rt.emaUtil = 0;
     }
@@ -256,7 +257,7 @@ export class SimEngine {
       if (!def) continue;
       const overflow = rt.queue.length - def.queueMax;
       if (overflow > 0) {
-        rt.queue.length = def.queueMax;
+        rt.queue.truncate(def.queueMax);
         dropped += overflow;
         this.inFlight -= overflow;
       }
