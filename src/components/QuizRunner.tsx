@@ -1,8 +1,9 @@
 "use client";
 
+import { CheckGlyph, CrossGlyph } from "@/components/ui";
 import type { Quiz, QuizQuestion } from "@/content/quizzes/schema";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 interface Answer {
   selected: string[];
@@ -14,6 +15,8 @@ function sameSet(a: string[], b: string[]): boolean {
   const s = new Set(a);
   return b.every((x) => s.has(x));
 }
+
+const letter = (i: number) => String.fromCharCode(65 + i);
 
 export function QuizRunner({ quiz }: { quiz: Quiz }) {
   const total = quiz.questions.length;
@@ -37,27 +40,58 @@ export function QuizRunner({ quiz }: { quiz: Quiz }) {
     }
   }, [atResults, score, quiz.slug]);
 
-  const toggle = (id: string) => {
-    if (submitted || !question) return;
-    if (question.type === "single") setPicks([id]);
-    else setPicks((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
-  };
+  const toggle = useCallback(
+    (id: string) => {
+      if (submitted || !question) return;
+      if (question.type === "single") setPicks([id]);
+      else setPicks((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id]));
+    },
+    [submitted, question],
+  );
 
-  const submit = () => {
+  const submit = useCallback(() => {
     if (!question || picks.length === 0) return;
     setAnswers((a) => [...a, { selected: picks, correct: sameSet(picks, question.correct) }]);
-  };
+  }, [question, picks]);
 
-  const next = () => {
+  const next = useCallback(() => {
     setIndex((i) => i + 1);
     setPicks([]);
-  };
+  }, []);
 
   const retry = () => {
     setIndex(0);
     setPicks([]);
     setAnswers([]);
   };
+
+  // Keyboard: A–D (or 1–4) choose, Enter submits / advances.
+  useEffect(() => {
+    if (!question) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+      const target = e.target as HTMLElement | null;
+      if (target && /^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName)) return;
+      const k = e.key.toLowerCase();
+      if (k === "enter") {
+        // Let other focused controls handle their own Enter; options defer to submit.
+        const isOption = target?.dataset.option !== undefined;
+        if (!isOption && (target?.tagName === "BUTTON" || target?.tagName === "A")) return;
+        e.preventDefault();
+        if (submitted) next();
+        else submit();
+        return;
+      }
+      const i = /^[1-9]$/.test(k) ? Number(k) - 1 : k.length === 1 ? k.charCodeAt(0) - 97 : -1;
+      const opt = i >= 0 ? question.options[i] : undefined;
+      if (opt) {
+        e.preventDefault();
+        toggle(opt.id);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [question, submitted, submit, next, toggle]);
 
   if (atResults) {
     return <Results quiz={quiz} answers={answers} score={score} onRetry={retry} />;
@@ -67,72 +101,95 @@ export function QuizRunner({ quiz }: { quiz: Quiz }) {
   const current = answers[index];
 
   return (
-    <div className="card p-5 sm:p-6">
+    <section className="panel overflow-hidden" aria-label={`Question ${index + 1} of ${total}`}>
       {/* progress */}
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <span className="font-mono text-[11px] uppercase tracking-wider text-fg-subtle">
-          Question {index + 1} / {total}
-        </span>
-        <span className="tnum text-xs text-fg-subtle">
-          Score <span className="text-fg">{score}</span>
-        </span>
+      <div className="border-b border-line px-5 py-3 sm:px-6">
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-fg-3">
+            Question <span className="tnum text-fg">{index + 1}</span> of{" "}
+            <span className="tnum">{total}</span>
+          </span>
+          <span className="text-fg-3">
+            Score <span className="tnum text-fg">{score}</span>
+          </span>
+        </div>
+        <ol className="mt-2.5 flex gap-1" aria-hidden>
+          {quiz.questions.map((q, i) => {
+            const a = answers[i];
+            const cls = a ? (a.correct ? "bg-ok" : "bg-bad") : i === index ? "bg-fg" : "bg-fill-2";
+            return (
+              <li
+                key={q.id}
+                className={`h-1 flex-1 rounded-full transition-colors duration-300 ${cls}`}
+              />
+            );
+          })}
+        </ol>
       </div>
-      <div className="mb-5 h-1 overflow-hidden rounded-full bg-raised">
-        <div
-          className="h-full rounded-full bg-brand transition-[width] duration-300"
-          style={{ width: `${(index / total) * 100}%` }}
-        />
-      </div>
 
-      {question.scenario && (
-        <p className="mb-2 rounded-lg border border-edge bg-raised px-3.5 py-2.5 text-sm leading-relaxed text-fg-muted">
-          {question.scenario}
-        </p>
-      )}
-      <h2 className="text-lg font-semibold leading-snug tracking-[-0.01em] text-fg">
-        {question.prompt}
-      </h2>
-      {question.type === "multi" && (
-        <p className="mt-1 text-xs text-fg-subtle">Select all that apply.</p>
-      )}
+      <div className="px-5 py-6 sm:px-6">
+        {question.scenario && (
+          <p className="mb-4 rounded-md border border-line bg-surface-2 px-4 py-3 text-sm leading-relaxed text-fg-2">
+            {question.scenario}
+          </p>
+        )}
+        <h2 className="text-lg font-medium leading-snug tracking-tight text-fg">
+          {question.prompt}
+        </h2>
+        {question.type === "multi" && (
+          <p className="mt-1 text-xs text-fg-3">Select all that apply.</p>
+        )}
 
-      <ul className="mt-4 space-y-2.5">
-        {question.options.map((opt) => (
-          <li key={opt.id}>
-            <OptionCard
-              text={opt.text}
-              type={question.type}
-              picked={picks.includes(opt.id)}
-              submitted={submitted}
-              isCorrect={question.correct.includes(opt.id)}
-              onClick={() => toggle(opt.id)}
-            />
-          </li>
-        ))}
-      </ul>
-
-      {!submitted ? (
-        <button
-          type="button"
-          onClick={submit}
-          disabled={picks.length === 0}
-          className="btn btn-primary mt-5"
+        <ul
+          className="mt-5 space-y-2"
+          role={question.type === "single" ? "radiogroup" : "group"}
+          aria-label="Options"
         >
-          Submit answer
-        </button>
-      ) : (
-        <div className="mt-5">
-          <Feedback correct={!!current?.correct} explanation={question.explanation} />
-          <button type="button" onClick={next} className="btn btn-primary mt-4">
+          {question.options.map((opt, i) => (
+            <li key={opt.id}>
+              <OptionButton
+                letter={letter(i)}
+                text={opt.text}
+                type={question.type}
+                picked={picks.includes(opt.id)}
+                submitted={submitted}
+                isCorrect={question.correct.includes(opt.id)}
+                onClick={() => toggle(opt.id)}
+              />
+            </li>
+          ))}
+        </ul>
+
+        {submitted && <Feedback correct={!!current?.correct} explanation={question.explanation} />}
+      </div>
+
+      <div className="flex items-center justify-between gap-3 border-t border-line bg-surface-2 px-5 py-3 sm:px-6">
+        <p className="hidden text-xs text-fg-3 sm:block">
+          <span className="kbd">A</span>–
+          <span className="kbd">{letter(question.options.length - 1)}</span> to choose ·{" "}
+          <span className="kbd">↵</span> to {submitted ? "continue" : "submit"}
+        </p>
+        {!submitted ? (
+          <button
+            type="button"
+            onClick={submit}
+            disabled={picks.length === 0}
+            className="btn btn-primary ml-auto"
+          >
+            Submit answer
+          </button>
+        ) : (
+          <button type="button" onClick={next} className="btn btn-primary ml-auto">
             {index + 1 < total ? "Next question" : "See results"}
           </button>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
+    </section>
   );
 }
 
-function OptionCard({
+function OptionButton({
+  letter,
   text,
   type,
   picked,
@@ -140,6 +197,7 @@ function OptionCard({
   isCorrect,
   onClick,
 }: {
+  letter: string;
   text: string;
   type: QuizQuestion["type"];
   picked: boolean;
@@ -147,62 +205,50 @@ function OptionCard({
   isCorrect: boolean;
   onClick: () => void;
 }) {
-  // state → border/background color
-  let borderColor = "var(--color-edge)";
-  let bg: string | undefined;
-  if (submitted) {
-    if (isCorrect) {
-      borderColor = "color-mix(in srgb, var(--color-healthy) 55%, transparent)";
-      bg = "color-mix(in srgb, var(--color-healthy) 8%, transparent)";
-    } else if (picked) {
-      borderColor = "color-mix(in srgb, var(--color-danger) 55%, transparent)";
-      bg = "color-mix(in srgb, var(--color-danger) 8%, transparent)";
-    }
-  } else if (picked) {
-    borderColor = "var(--color-brand)";
-    bg = "color-mix(in srgb, var(--color-brand) 10%, transparent)";
-  }
-
-  const mark = type === "single" ? "rounded-full" : "rounded";
-  let markColor = picked ? "var(--color-brand-bright)" : "var(--color-edge-strong)";
-  if (submitted && isCorrect) markColor = "var(--color-healthy)";
-  else if (submitted && picked) markColor = "var(--color-danger)";
+  let state =
+    "border-line-strong bg-surface text-fg-2 enabled:hover:border-[#3a3a3a] enabled:hover:bg-surface-2 enabled:hover:text-fg enabled:active:bg-fill";
+  if (submitted && isCorrect) state = "border-ok/50 bg-ok/10 text-fg";
+  else if (submitted && picked) state = "border-bad/50 bg-bad/10 text-fg";
+  else if (submitted) state = "border-line bg-surface text-fg-3";
+  else if (picked) state = "border-fg bg-surface-2 text-fg";
 
   return (
     <button
       type="button"
+      role={type === "single" ? "radio" : "checkbox"}
+      data-option
+      aria-checked={picked}
       onClick={onClick}
       disabled={submitted}
-      className="flex w-full items-center gap-3 rounded-lg border px-3.5 py-3 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-focus)] disabled:cursor-default enabled:hover:border-edge-strong"
-      style={{ borderColor, background: bg }}
+      className={`focus-ring flex w-full items-center gap-3 rounded-md border px-3.5 py-3 text-left text-sm transition-colors duration-150 ease-out disabled:cursor-default ${state}`}
     >
       <span
+        className={`kbd shrink-0 ${picked && !submitted ? "!border-fg !bg-fg !text-black" : ""}`}
         aria-hidden
-        className={`flex h-4 w-4 shrink-0 items-center justify-center border-2 ${mark}`}
-        style={{ borderColor: markColor, background: picked ? markColor : "transparent" }}
       >
-        {submitted && isCorrect && <Glyph kind="check" />}
-        {submitted && picked && !isCorrect && <Glyph kind="x" />}
+        {letter}
       </span>
-      <span className={submitted && isCorrect ? "text-fg" : "text-fg-muted"}>{text}</span>
+      <span className="flex-1">{text}</span>
+      {submitted && isCorrect && <CheckGlyph size={13} className="shrink-0 text-ok-fg" />}
+      {submitted && picked && !isCorrect && (
+        <CrossGlyph size={13} className="shrink-0 text-bad-fg" />
+      )}
     </button>
   );
 }
 
 function Feedback({ correct, explanation }: { correct: boolean; explanation: string }) {
-  const color = correct ? "var(--color-healthy)" : "var(--color-danger)";
   return (
     <div
-      className="rounded-lg border p-3.5"
-      style={{
-        borderColor: `color-mix(in srgb, ${color} 40%, transparent)`,
-        background: `color-mix(in srgb, ${color} 6%, transparent)`,
-      }}
+      aria-live="polite"
+      className={`mt-5 rounded-md border p-4 ${
+        correct ? "border-ok/30 bg-ok/[0.06]" : "border-bad/30 bg-bad/[0.06]"
+      }`}
     >
-      <p className="font-mono text-[11px] font-semibold uppercase tracking-wider" style={{ color }}>
+      <p className={`text-sm font-medium ${correct ? "text-ok-fg" : "text-bad-fg"}`}>
         {correct ? "Correct" : "Not quite"}
       </p>
-      <p className="mt-1.5 text-sm leading-relaxed text-fg-muted">{explanation}</p>
+      <p className="mt-1 text-sm leading-relaxed text-fg-2">{explanation}</p>
     </div>
   );
 }
@@ -224,60 +270,55 @@ function Results({
     pct >= 85 ? "Sharp instincts." : pct >= 60 ? "Solid — a few to sharpen." : "Worth a rerun.";
 
   return (
-    <div className="card p-5 sm:p-6">
-      <p className="eyebrow mb-2">Results</p>
-      <div className="flex items-baseline gap-3">
-        <span className="tnum text-4xl font-bold text-brand-bright">
+    <section className="panel overflow-hidden" aria-label="Results">
+      <div className="border-b border-line px-5 py-8 text-center sm:px-6">
+        <p className="text-xs text-fg-3">Your score</p>
+        <p className="display tnum mt-2 text-6xl text-fg">
           {score}
-          <span className="text-2xl text-fg-subtle">/{total}</span>
-        </span>
-        <span className="text-sm text-fg-muted">{message}</span>
+          <span className="text-fg-3">/{total}</span>
+        </p>
+        <p className="mt-3 text-sm text-fg-2">{message}</p>
       </div>
 
-      <ul className="mt-5 space-y-2">
+      <ol className="divide-y divide-line">
         {quiz.questions.map((q, i) => {
-          const ok = answers[i]?.correct;
-          const color = ok ? "var(--color-healthy)" : "var(--color-danger)";
+          const a = answers[i];
+          const ok = !!a?.correct;
+          const yours = q.options
+            .filter((o) => a?.selected.includes(o.id))
+            .map((o) => o.text)
+            .join(", ");
+          const right = q.options
+            .filter((o) => q.correct.includes(o.id))
+            .map((o) => o.text)
+            .join(", ");
           return (
-            <li
-              key={q.id}
-              className="flex items-start gap-2.5 rounded-lg border border-edge px-3.5 py-2.5 text-sm"
-            >
-              <span className="mt-0.5 shrink-0" style={{ color }}>
-                <Glyph kind={ok ? "check" : "x"} />
+            <li key={q.id} className="flex gap-3 px-5 py-3.5 sm:px-6">
+              <span className={`mt-0.5 shrink-0 ${ok ? "text-ok-fg" : "text-bad-fg"}`}>
+                {ok ? <CheckGlyph size={13} /> : <CrossGlyph size={13} />}
               </span>
-              <span className="text-fg-muted">{q.prompt}</span>
+              <div className="min-w-0 text-sm">
+                <p className="text-fg">{q.prompt}</p>
+                {!ok && (
+                  <p className="mt-1 text-xs leading-relaxed text-fg-3">
+                    You chose <span className="text-fg-2">{yours || "nothing"}</span> · Answer:{" "}
+                    <span className="text-ok-fg">{right}</span>
+                  </p>
+                )}
+              </div>
             </li>
           );
         })}
-      </ul>
+      </ol>
 
-      <div className="mt-5 flex flex-wrap gap-2">
+      <div className="flex flex-wrap justify-end gap-2 border-t border-line bg-surface-2 px-5 py-3 sm:px-6">
+        <Link href="/quiz" className="btn btn-secondary">
+          All quizzes
+        </Link>
         <button type="button" onClick={onRetry} className="btn btn-primary">
           Try again
         </button>
-        <Link href="/quiz" className="btn btn-secondary">
-          Back to quizzes
-        </Link>
       </div>
-    </div>
-  );
-}
-
-function Glyph({ kind }: { kind: "check" | "x" }) {
-  return (
-    <svg
-      width="11"
-      height="11"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="3"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      {kind === "check" ? <path d="M20 6 9 17l-5-5" /> : <path d="M18 6 6 18M6 6l12 12" />}
-    </svg>
+    </section>
   );
 }

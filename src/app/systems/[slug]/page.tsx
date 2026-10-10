@@ -1,9 +1,8 @@
-import { SectionGlyph } from "@/components/Logo";
 import { Simulator } from "@/components/Simulator";
 import { SystemIcon } from "@/components/icons";
+import { Breadcrumbs, CheckGlyph, SectionHeader } from "@/components/ui";
 import { getAllSlugs, getSystem } from "@/content/registry";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
 interface PageProps {
@@ -24,160 +23,120 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
   };
 }
 
-function SectionHeading({ kicker, title }: { kicker: string; title: string }) {
-  return (
-    <div className="mb-4">
-      <div className="flex items-center gap-2">
-        <span className="text-brand-bright">
-          <SectionGlyph />
-        </span>
-        <span className="eyebrow">{kicker}</span>
-      </div>
-      <h2 className="mt-2 text-xl font-semibold tracking-[-0.01em]">{title}</h2>
-    </div>
-  );
-}
-
-function CheckIcon() {
-  return (
-    <svg
-      width="12"
-      height="12"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-    >
-      <path d="M20 6 9 17l-5-5" />
-    </svg>
-  );
-}
-
-export default async function ProductPage({ params }: PageProps) {
+export default async function SystemPage({ params }: PageProps) {
   const { slug } = await params;
   const system = getSystem(slug);
   if (!system) notFound();
 
   return (
     <article>
-      <nav className="mb-6 flex items-center gap-2 text-sm text-fg-subtle">
-        <Link href="/systems" className="transition-colors hover:text-fg">
-          Systems
-        </Link>
-        <span aria-hidden className="opacity-50">
-          /
-        </span>
-        <span className="text-fg-muted">{system.name}</span>
-      </nav>
+      <Breadcrumbs items={[{ label: "Systems", href: "/systems" }, { label: system.name }]} />
 
-      <header className="mb-10">
-        <div className="flex items-start gap-4">
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-edge bg-raised text-brand-bright">
-            <SystemIcon name={system.icon} size={24} />
-          </span>
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2.5">
-              <h1 className="text-3xl font-bold tracking-[-0.02em]">{system.name}</h1>
-              <span className="badge">{system.category}</span>
-              {system.sla && <span className="badge">{system.sla}</span>}
-            </div>
-            <p className="mt-2.5 max-w-2xl text-[15px] leading-relaxed text-fg-muted">
-              {system.blurb}
-            </p>
-          </div>
+      <header className="mb-6 flex items-start gap-4">
+        <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-md border border-line-strong bg-surface-2 text-fg-2">
+          <SystemIcon name={system.icon} size={20} />
+        </span>
+        <div className="min-w-0">
+          <h1 className="text-2xl font-semibold tracking-tight text-fg">{system.name}</h1>
+          <p className="mt-1 text-xs text-fg-3">
+            {system.category}
+            {system.sla && <> · SLA {system.sla}</>} · {system.graph.nodes.length} nodes
+          </p>
+          <p className="mt-2 max-w-3xl text-sm leading-relaxed text-fg-2">{system.blurb}</p>
         </div>
       </header>
 
-      <section className="mb-12">
-        <SectionHeading kicker="Live model" title="Drive the system" />
-        <Simulator
-          graph={system.graph}
-          defaultArrivalRatePerTick={system.defaultArrivalRatePerTick}
-        />
-      </section>
+      <Simulator
+        graph={system.graph}
+        defaultArrivalRatePerTick={system.defaultArrivalRatePerTick}
+      />
+      <p className="mt-2 text-xs text-fg-3">
+        Try: raise traffic until something drops, then scale only the bottleneck and watch where the
+        limit moves next. Or break a node and see what its neighbours do.
+      </p>
 
-      <div className="space-y-12">
+      <div className="mt-14 space-y-14">
         {system.challenge && (
-          <section>
-            <SectionHeading kicker="The challenge" title={system.challenge.title} />
-            <div className="grid gap-3 sm:grid-cols-2">
-              <div className="card p-4">
-                <p className="eyebrow mb-2" style={{ color: "var(--color-warn)" }}>
+          <section aria-labelledby="challenge">
+            <SectionHeader id="challenge" title={system.challenge.title} />
+            <div className="panel grid md:grid-cols-2">
+              <div className="border-b border-line p-5 md:border-r md:border-b-0">
+                <p className="flex items-center gap-1.5 text-xs font-medium text-warn-fg">
+                  <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-warn" />
                   The bottleneck
                 </p>
-                <p className="text-sm leading-relaxed text-fg-muted">
+                <p className="mt-2 text-sm leading-relaxed text-fg-2">
                   {system.challenge.bottleneck}
                 </p>
               </div>
-              <div className="card p-4">
-                <p className="eyebrow mb-2" style={{ color: "var(--color-healthy)" }}>
+              <div className="p-5">
+                <p className="flex items-center gap-1.5 text-xs font-medium text-ok-fg">
+                  <span aria-hidden className="h-1.5 w-1.5 rounded-full bg-ok" />
                   The approach
                 </p>
-                <p className="text-sm leading-relaxed text-fg-muted">{system.challenge.solution}</p>
+                <p className="mt-2 text-sm leading-relaxed text-fg-2">
+                  {system.challenge.solution}
+                </p>
               </div>
             </div>
           </section>
         )}
 
         {system.tradeoffs && system.tradeoffs.length > 0 && (
-          <section>
-            <SectionHeading kicker="Decisions" title="Trade-offs" />
-            <div className="grid gap-3 sm:grid-cols-2">
+          <section aria-labelledby="tradeoffs">
+            <SectionHeader
+              id="tradeoffs"
+              title="Trade-offs"
+              aside={`${system.tradeoffs.length} decisions`}
+            />
+            <ul className="panel divide-y divide-line">
               {system.tradeoffs.map((t) => (
-                <div key={t.question} className="card p-4">
-                  <p className="font-medium text-fg">{t.question}</p>
-                  <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-                    <span className="inline-flex items-center gap-1.5 rounded-md border border-brand/40 bg-brand/10 px-2 py-1 font-medium text-brand-bright">
-                      <CheckIcon />
+                <li key={t.question} className="grid gap-3 p-5 md:grid-cols-[minmax(0,18rem)_1fr]">
+                  <div>
+                    <p className="text-sm font-medium text-fg">{t.question}</p>
+                    <p className="mt-2 inline-flex items-center gap-1.5 text-xs text-fg">
+                      <CheckGlyph size={11} className="text-ok-fg" />
                       {t.chosen}
-                    </span>
-                    <span className="text-fg-subtle">over {t.alternatives.join(", ")}</span>
+                    </p>
+                    <p className="mt-1 text-xs text-fg-3">over {t.alternatives.join(", ")}</p>
                   </div>
-                  <p className="mt-3 text-sm leading-relaxed text-fg-muted">{t.rationale}</p>
-                </div>
+                  <p className="text-sm leading-relaxed text-fg-2">{t.rationale}</p>
+                </li>
               ))}
-            </div>
+            </ul>
           </section>
         )}
 
         {system.services && system.services.length > 0 && (
-          <section>
-            <SectionHeading kicker="Anatomy" title="Components" />
-            <div className="card overflow-x-auto">
-              <table className="w-full border-collapse text-left text-sm">
+          <section aria-labelledby="components">
+            <SectionHeader id="components" title="Components" />
+            <div className="panel overflow-x-auto">
+              <table className="w-full min-w-[40rem] border-collapse text-left text-sm">
                 <thead>
-                  <tr className="border-b border-edge-strong">
-                    <th className="px-4 py-3 font-mono text-[11px] font-medium uppercase tracking-wider text-fg-subtle">
+                  <tr className="border-b border-line bg-surface-2 text-xs text-fg-3">
+                    <th scope="col" className="px-5 py-2.5 font-normal">
                       Component
                     </th>
-                    <th className="px-4 py-3 font-mono text-[11px] font-medium uppercase tracking-wider text-fg-subtle">
+                    <th scope="col" className="px-5 py-2.5 font-normal">
                       Tier
                     </th>
-                    <th className="px-4 py-3 font-mono text-[11px] font-medium uppercase tracking-wider text-fg-subtle">
+                    <th scope="col" className="px-5 py-2.5 font-normal">
                       Stack
                     </th>
-                    <th className="px-4 py-3 font-mono text-[11px] font-medium uppercase tracking-wider text-fg-subtle">
+                    <th scope="col" className="px-5 py-2.5 font-normal">
                       Function
                     </th>
                   </tr>
                 </thead>
-                <tbody>
+                <tbody className="divide-y divide-line">
                   {system.services.map((s) => (
-                    <tr
-                      key={s.component}
-                      className="border-b border-edge transition-colors last:border-0 hover:bg-white/[0.02]"
-                    >
-                      <td className="px-4 py-3 font-medium text-fg">{s.component}</td>
-                      <td className="px-4 py-3">
-                        <span className="badge">{s.tier}</span>
-                      </td>
-                      <td className="px-4 py-3 font-mono text-xs text-fg-subtle">
+                    <tr key={s.component} className="align-top">
+                      <td className="px-5 py-3 text-fg">{s.component}</td>
+                      <td className="px-5 py-3 text-fg-2">{s.tier}</td>
+                      <td className="tnum px-5 py-3 text-xs leading-5 text-fg-3">
                         {s.stack.join(" · ")}
                       </td>
-                      <td className="px-4 py-3 text-fg-muted">{s.function}</td>
+                      <td className="px-5 py-3 text-fg-2">{s.function}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -187,12 +146,16 @@ export default async function ProductPage({ params }: PageProps) {
         )}
 
         {system.interview && system.interview.length > 0 && (
-          <section>
-            <SectionHeading kicker="Go deeper" title="Interview questions" />
-            <ol className="space-y-3">
+          <section aria-labelledby="interview">
+            <SectionHeader
+              id="interview"
+              title="Interview questions"
+              description="Answer these out loud, then check your reasoning against the live model."
+            />
+            <ol className="panel divide-y divide-line">
               {system.interview.map((q, i) => (
-                <li key={q} className="flex gap-3 text-sm leading-relaxed text-fg-muted">
-                  <span className="tnum shrink-0 pt-0.5 text-xs font-semibold text-brand-bright">
+                <li key={q} className="flex gap-4 px-5 py-3.5 text-sm leading-relaxed text-fg-2">
+                  <span className="tnum shrink-0 pt-px text-xs text-fg-3">
                     {String(i + 1).padStart(2, "0")}
                   </span>
                   <span>{q}</span>

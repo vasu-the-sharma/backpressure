@@ -82,12 +82,33 @@ downstream when a tier is scaled.
 ## Tech stack
 
 - **Next.js (App Router) + React + TypeScript** in strict mode. Content pages
-  are statically generated; the simulator is the only client component.
+  are statically generated; the interactive pieces are client islands.
 - **Zod** validates content at build time.
 - **Vitest** for the engine.
 - **Tailwind CSS** for styling.
 - **Biome** for lint and format.
 - **Vercel** for hosting.
+
+## Design system
+
+The UI is a black canvas with near-black panels separated by hairlines rather
+than shadows. White carries primary actions and one blue accent marks focus and
+selection. Beyond that, color is reserved for system state, and only three exist:
+green (headroom), amber (the bottleneck / stress), red (saturation, drops, an
+outage). Color is never the only signal; every state also has a label or number.
+
+- **Tokens** live in `src/app/globals.css` (`@theme`): surfaces `canvas` →
+  `surface` → `surface-2` → `fill`, hairlines `line` / `line-strong`, text
+  `fg` → `fg-4`, and `ok` / `warn` / `bad` with text-safe `*-fg` tints.
+- **Type**: Inter (optical sizing) for text, JetBrains Mono for every number
+  (`.tnum`). Index pages open with large display type (`.display`); inside the
+  app the scale is fixed: title `text-2xl`, section `text-base font-medium`,
+  body `text-sm`, meta `text-xs`.
+- **Primitives**: `.panel`, `.btn` (+ `-primary` / `-secondary` / `-ghost`, sizes),
+  `.range`, `.kbd`, `.skeleton`, `.focus-ring`; layout pieces in
+  `src/components/ui.tsx`. Radii are 6px (controls) and 8px (panels).
+- **Motion** is entrance-only (`.rise-in`, `<Reveal>`) and honors
+  `prefers-reduced-motion`.
 
 ## Project structure
 
@@ -98,16 +119,28 @@ src/
     rng.ts        Seeded PRNG
     metrics.ts    Percentiles and the rolling metric window
     engine.ts     The tick loop
+    score.ts      Run a design to steady state and grade it against an SLO
     engine.test.ts
   content/        Content as typed, validated data
     schema.ts     Zod schema and the System type
     registry.ts   Loads and validates all systems at build time
     systems/      One module per system
+    challenges/   Playground scenarios (load profile + SLO)
+    quizzes/      Quiz modules
+    verticals.ts  The product areas; drives the nav and landing
+    demo.ts       The landing page's live demo graph and load sweep
+  lib/            Small pure helpers for the UI
   app/            Next.js App Router (SSG pages)
-    page.tsx      Home: the system catalog
-    products/[slug]/page.tsx
+    page.tsx      Landing, with the live demo
+    systems/      Catalog and /systems/[slug] (the simulator)
+    playground/   Challenges and /playground/[slug] (the design canvas)
+    quiz/         Quizzes and /quiz/[slug]
   components/
-    Simulator.tsx The client island that drives the engine
+    Simulator.tsx         The live model on each system page
+    LiveDemo.tsx          The landing page's running demo
+    PlaygroundCanvas.tsx  The design canvas (React Flow)
+    QuizRunner.tsx        The quiz player
+    ui.tsx                Layout primitives that encode the type scale
 ```
 
 ## Getting started

@@ -1,159 +1,109 @@
 @import "tailwindcss";
 
 /* ------------------------------------------------------------------ *
- * Backpressure design tokens
- * Brand accent is electric indigo/violet. Amber == stress/bottleneck,
- * red == failure, cool green == healthy. These three health colors are
- * validated (CVD-safe, >=3:1 on the dark track) and are never the brand.
+ * Backpressure design system
+ *
+ * A black canvas with near-black panels separated by hairlines, not shadows.
+ * White carries primary actions; one blue accent marks focus and selection.
+ * Color beyond that is reserved for system state, and only three exist:
+ *   ok   (green)  a tier with headroom
+ *   warn (amber)  the bottleneck / a tier under stress
+ *   bad  (red)    saturation, dropped requests, an outage
+ * Color is never the only signal: every state also has a label or number.
  * ------------------------------------------------------------------ */
 @theme {
-  /* Surfaces */
-  --color-ink: #07090f; /* page base */
-  --color-panel: #0d1017; /* cards / panels */
-  --color-raised: #151925; /* raised wells (tiles, tracks' frames) */
-  --color-edge: #212838; /* hairline borders */
-  --color-edge-strong: #303850; /* emphasized borders */
-
-  /* Text */
-  --color-fg: #eaedf5; /* primary */
-  --color-fg-muted: #aab2c5; /* secondary / body */
-  --color-fg-subtle: #6a7286; /* muted / labels */
-
-  /* Brand — electric indigo/violet */
-  --color-brand: #6e56f7;
-  --color-brand-bright: #8e7bff;
-  --color-brand-dim: #2c2a5a;
-
-  /* Health scale (data state only) */
-  --color-healthy: #1db981;
-  --color-warn: #f5a524; /* stress / bottleneck */
-  --color-danger: #f0464c; /* failure / overload */
-
-  /* Fonts (wired from next/font in layout.tsx) */
-  --font-display: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif;
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: var(--font-jetbrains-mono), ui-monospace, "SFMono-Regular", monospace;
+
+  /* Surfaces, darkest to lightest */
+  --color-canvas: #000000; /* page */
+  --color-surface: #0b0b0b; /* panels */
+  --color-surface-2: #121212; /* panel headers, wells */
+  --color-fill: #1a1a1a; /* hover fills, tracks */
+  --color-fill-2: #242424; /* pressed fills */
+
+  /* Hairlines */
+  --color-line: #1f1f1f;
+  --color-line-strong: #2e2e2e;
+
+  /* Text */
+  --color-fg: #ffffff;
+  --color-fg-2: #a1a1a1; /* body / secondary */
+  --color-fg-3: #6f6f6f; /* meta / captions */
+  --color-fg-4: #4a4a4a; /* disabled / placeholder */
+
+  /* The one accent: focus, selection, links in prose */
+  --color-accent: #0099ff;
+
+  /* Data state. `*-fg` is the text-safe tint on black. */
+  --color-ok: #22c55e;
+  --color-ok-fg: #4ade80;
+  --color-warn: #f59e0b;
+  --color-warn-fg: #fbbf24;
+  --color-bad: #ef4444;
+  --color-bad-fg: #f87171;
 }
 
 :root {
   color-scheme: dark;
-  --color-focus: var(--color-brand-bright);
-  --grid-line: rgba(255, 255, 255, 0.022);
 }
 
 @layer base {
-  html {
-    scroll-behavior: smooth;
-  }
-
   body {
-    background-color: var(--color-ink);
+    background-color: var(--color-canvas);
     color: var(--color-fg);
     font-family: var(--font-sans);
+    font-optical-sizing: auto;
     -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
-    /* A faint 32px instrument grid under everything; panels are opaque so
-       the grid only shows in the gaps, giving quiet depth. */
-    background-image: linear-gradient(var(--grid-line) 1px, transparent 1px),
-      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
-    background-size: 32px 32px;
-    background-position: center top;
-    background-attachment: fixed;
-  }
-
-  /* Indigo pressure-front aura behind the header. */
-  body::before {
-    content: "";
-    position: fixed;
-    inset: 0;
-    pointer-events: none;
-    z-index: 0;
-    background: radial-gradient(1100px 520px at 50% -8%, rgba(110, 86, 247, 0.13), transparent 62%);
   }
 
   ::selection {
-    background: color-mix(in srgb, var(--color-brand) 40%, transparent);
+    background: color-mix(in srgb, var(--color-accent) 45%, transparent);
     color: #fff;
-  }
-
-  /* Headings default to the display face. */
-  h1,
-  h2,
-  h3 {
-    font-family: var(--font-display);
-    color: var(--color-fg);
-    letter-spacing: -0.015em;
   }
 
   a {
     color: inherit;
   }
 
-  /* Thin, dark, brand-tinted scrollbars. */
   * {
     scrollbar-width: thin;
-    scrollbar-color: var(--color-edge-strong) transparent;
-  }
-  *::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
-  }
-  *::-webkit-scrollbar-thumb {
-    background: var(--color-edge-strong);
-    border-radius: 999px;
-    border: 3px solid transparent;
-    background-clip: padding-box;
+    scrollbar-color: var(--color-line-strong) transparent;
   }
 }
 
 @layer components {
-  /* ---- Numbers: measured, not decorative ---- */
+  /* ---- Numbers are measurements: monospaced, tabular, slashed zero ---- */
   .tnum {
     font-family: var(--font-mono);
     font-variant-numeric: tabular-nums;
     font-feature-settings: "tnum" 1, "zero" 1;
+    letter-spacing: -0.01em;
   }
 
-  /* ---- Eyebrow / kicker ---- */
-  .eyebrow {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    font-weight: 500;
-    text-transform: uppercase;
-    letter-spacing: 0.12em;
-    color: var(--color-brand-bright);
+  /* ---- Display type: large, tight, optical ---- */
+  .display {
+    font-weight: 600;
+    letter-spacing: -0.045em;
+    line-height: 0.98;
+    text-wrap: balance;
   }
 
-  /* ---- Pill badge ---- */
-  .badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    font-family: var(--font-mono);
-    font-size: 11px;
-    line-height: 1;
-    color: var(--color-fg-subtle);
-    background: var(--color-raised);
-    border: 1px solid var(--color-edge);
-    border-radius: 999px;
-    padding: 4px 10px;
-    white-space: nowrap;
+  /* ---- Focus ring shared by every interactive element ---- */
+  .focus-ring {
+    outline: none;
   }
-  .badge-dot::before {
-    content: "";
-    width: 5px;
-    height: 5px;
-    border-radius: 999px;
-    background: var(--color-brand-bright);
-    box-shadow: 0 0 6px color-mix(in srgb, var(--color-brand-bright) 80%, transparent);
+  .focus-ring:focus-visible {
+    box-shadow: 0 0 0 2px var(--color-canvas), 0 0 0 4px var(--color-accent);
   }
 
-  /* ---- Card ---- */
-  .card {
-    background: var(--color-panel);
-    border: 1px solid var(--color-edge);
-    border-radius: 12px;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  /* ---- Panel: the one surface primitive ---- */
+  .panel {
+    background: var(--color-surface);
+    border: 1px solid var(--color-line);
+    border-radius: 8px;
   }
 
   /* ---- Buttons ---- */
@@ -161,126 +111,239 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 0.4rem;
-    border-radius: 8px;
+    gap: 6px;
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 6px;
     border: 1px solid transparent;
-    font-family: var(--font-sans);
     font-size: 13px;
-    font-weight: 600;
+    font-weight: 500;
     line-height: 1;
-    padding: 0.5rem 0.85rem;
+    white-space: nowrap;
     cursor: pointer;
-    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease, box-shadow
-      0.15s ease, transform 0.1s ease;
+    user-select: none;
+    outline: none;
+    transition: background-color 150ms ease-out, border-color 150ms ease-out, color 150ms ease-out;
   }
   .btn:focus-visible {
-    outline: 2px solid var(--color-focus);
-    outline-offset: 2px;
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-focus) 22%, transparent);
+    box-shadow: 0 0 0 2px var(--color-canvas), 0 0 0 4px var(--color-accent);
   }
   .btn:disabled {
     cursor: not-allowed;
-    opacity: 0.55;
+    opacity: 0.4;
   }
 
+  /* Primary: white on black, the strongest mark on the page. */
   .btn-primary {
-    background: var(--color-brand);
-    color: #fff;
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+    background: #fff;
+    color: #000;
   }
   .btn-primary:hover:not(:disabled) {
-    background: var(--color-brand-bright);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16), 0 6px 20px -6px
-      color-mix(in srgb, var(--color-brand) 65%, transparent);
+    background: #e6e6e6;
   }
   .btn-primary:active:not(:disabled) {
-    transform: translateY(1px);
-    background: #5a46e0;
+    background: #cfcfcf;
   }
 
   .btn-secondary {
-    background: var(--color-raised);
-    border-color: var(--color-edge);
-    color: var(--color-fg-muted);
+    background: var(--color-fill);
+    border-color: var(--color-line-strong);
+    color: var(--color-fg);
   }
   .btn-secondary:hover:not(:disabled) {
-    border-color: var(--color-edge-strong);
-    color: var(--color-fg);
-    background: color-mix(in srgb, var(--color-raised) 82%, #ffffff 5%);
+    background: var(--color-fill-2);
+    border-color: #3a3a3a;
   }
   .btn-secondary:active:not(:disabled) {
-    transform: translateY(1px);
+    background: #2c2c2c;
   }
 
-  /* Small control buttons (Break / Recover) */
-  .btn-xs {
+  .btn-ghost {
+    background: transparent;
+    color: var(--color-fg-2);
+  }
+  .btn-ghost:hover:not(:disabled) {
+    background: var(--color-fill);
+    color: var(--color-fg);
+  }
+  .btn-ghost:active:not(:disabled) {
+    background: var(--color-fill-2);
+  }
+
+  .btn-lg {
+    height: 40px;
+    padding: 0 16px;
+    font-size: 14px;
+    border-radius: 8px;
+  }
+  .btn-sm {
+    height: 28px;
+    padding: 0 10px;
     font-size: 12px;
-    padding: 0.3rem 0.6rem;
-    border-radius: 6px;
   }
-  .btn-break:hover:not(:disabled) {
-    border-color: color-mix(in srgb, var(--color-danger) 55%, transparent);
-    color: var(--color-danger);
+  .btn-icon {
+    width: 28px;
+    height: 28px;
+    padding: 0;
+    font-size: 14px;
   }
-  .btn-recover {
-    border-color: color-mix(in srgb, var(--color-healthy) 45%, transparent);
-    color: var(--color-healthy);
-  }
-  .btn-recover:hover:not(:disabled) {
-    border-color: color-mix(in srgb, var(--color-healthy) 70%, transparent);
-    background: color-mix(in srgb, var(--color-healthy) 10%, transparent);
-  }
-
-  /* ---- Replica pill (indigo = a control value) ---- */
-  .replica-pill {
-    font-family: var(--font-mono);
-    font-size: 11px;
-    line-height: 1;
-    color: var(--color-brand-bright);
-    background: color-mix(in srgb, var(--color-brand) 14%, transparent);
-    border: 1px solid color-mix(in srgb, var(--color-brand) 32%, transparent);
-    border-radius: 6px;
-    padding: 2px 5px;
+  .btn-icon-xs {
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    font-size: 13px;
+    border-radius: 5px;
   }
 
-  /* ---- Range slider (traffic dial) ---- */
-  .bp-range {
+  .btn-danger-hover:hover:not(:disabled) {
+    color: var(--color-bad-fg);
+    border-color: color-mix(in srgb, var(--color-bad) 50%, transparent);
+    background: color-mix(in srgb, var(--color-bad) 10%, var(--color-fill));
+  }
+
+  /* ---- Range slider ---- */
+  .range {
     -webkit-appearance: none;
     appearance: none;
-    width: 100%;
-    height: 6px;
+    height: 4px;
     border-radius: 999px;
-    background: var(--color-raised);
-    border: 1px solid var(--color-edge);
+    background: var(--color-fill-2);
     outline: none;
     cursor: pointer;
   }
-  .bp-range::-webkit-slider-thumb {
+  .range::-webkit-slider-thumb {
     -webkit-appearance: none;
     appearance: none;
-    width: 16px;
-    height: 16px;
-    border-radius: 999px;
-    background: var(--color-brand-bright);
-    border: 2px solid var(--color-ink);
-    box-shadow: 0 0 0 1px var(--color-brand), 0 2px 8px -2px rgba(110, 86, 247, 0.7);
-  }
-  .bp-range::-moz-range-thumb {
     width: 14px;
     height: 14px;
     border-radius: 999px;
-    background: var(--color-brand-bright);
-    border: 2px solid var(--color-ink);
-    box-shadow: 0 0 0 1px var(--color-brand);
+    background: #fff;
+    border: 0;
+    transition: transform 150ms ease-out;
   }
-  .bp-range:focus-visible {
-    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-focus) 22%, transparent);
+  .range:hover::-webkit-slider-thumb {
+    transform: scale(1.15);
+  }
+  .range::-moz-range-thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 999px;
+    background: #fff;
+    border: 0;
+  }
+  .range:focus-visible {
+    box-shadow: 0 0 0 2px var(--color-canvas), 0 0 0 4px var(--color-accent);
+  }
+
+  /* ---- Keyboard hint ---- */
+  .kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 5px;
+    border-radius: 4px;
+    border: 1px solid var(--color-line-strong);
+    background: var(--color-surface-2);
+    font-family: var(--font-mono);
+    font-size: 11px;
+    color: var(--color-fg-3);
+  }
+
+  /* ---- Skeleton placeholder ---- */
+  .skeleton {
+    display: inline-block;
+    border-radius: 4px;
+    background: var(--color-fill);
+    animation: skeleton-pulse 1.4s ease-in-out infinite;
   }
 }
 
+@keyframes skeleton-pulse {
+  50% {
+    opacity: 0.5;
+  }
+}
+
+/* ---- Motion: entrance reveals (Reveal component + hero) ---- */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+}
+@keyframes wire {
+  to {
+    stroke-dashoffset: -12;
+  }
+}
+.rise-in {
+  animation: rise-in 700ms cubic-bezier(0.2, 0.7, 0.1, 1) both;
+}
+.reveal {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 700ms cubic-bezier(0.2, 0.7, 0.1, 1), transform 700ms
+    cubic-bezier(0.2, 0.7, 0.1, 1);
+}
+.reveal[data-shown="true"] {
+  opacity: 1;
+  transform: none;
+}
+
+/* A down node's meter: hatched, so an outage reads without color. */
+.hatch-bad {
+  background-color: color-mix(in srgb, var(--color-bad) 22%, transparent);
+  background-image: repeating-linear-gradient(
+    -45deg,
+    color-mix(in srgb, var(--color-bad) 70%, transparent) 0 2px,
+    transparent 2px 6px
+  );
+}
+
+/* React Flow: match the system. */
+.react-flow {
+  --xy-background-color: var(--color-canvas);
+  --xy-edge-stroke: #3a3a3a;
+  --xy-edge-stroke-selected: var(--color-accent);
+  --xy-connectionline-stroke: var(--color-accent);
+}
+.react-flow__controls {
+  box-shadow: none !important;
+  border: 1px solid var(--color-line-strong);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.react-flow__controls-button {
+  background: var(--color-surface-2) !important;
+  border-bottom: 1px solid var(--color-line-strong) !important;
+  color: var(--color-fg-2) !important;
+  fill: currentColor !important;
+  transition: background-color 150ms ease-out;
+}
+.react-flow__controls-button:hover {
+  background: var(--color-fill-2) !important;
+  color: var(--color-fg) !important;
+}
+.react-flow__controls-button:last-child {
+  border-bottom: 0 !important;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  html {
-    scroll-behavior: auto;
+  .rise-in,
+  .reveal {
+    animation: none;
+    opacity: 1;
+    transform: none;
+    filter: none;
+    transition: none;
   }
   *,
   *::before,
