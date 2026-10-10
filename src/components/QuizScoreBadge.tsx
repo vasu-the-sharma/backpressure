@@ -1,33 +1,32 @@
 "use client";
 
+import { CheckGlyph } from "@/components/ui";
 import { useEffect, useState } from "react";
 
-/** Shows the viewer's best score for a quiz (per-browser). */
+/**
+ * The viewer's best score for a quiz (per-browser). Shows a skeleton until
+ * storage has been read, so the row never claims the wrong state.
+ */
 export function QuizScoreBadge({ slug, total }: { slug: string; total: number }) {
-  const [best, setBest] = useState<number | null>(null);
+  const [best, setBest] = useState<number | null | undefined>(undefined);
 
   useEffect(() => {
     try {
       const v = localStorage.getItem(`bp.quiz.${slug}`);
-      if (v !== null) setBest(Number(v));
+      setBest(v === null ? null : Number(v));
     } catch {
-      // storage unavailable — show nothing.
+      setBest(null); // storage unavailable — scores are a convenience.
     }
   }, [slug]);
 
-  if (best === null) return null;
+  if (best === undefined) return <span className="skeleton h-3 w-16" aria-hidden />;
+  if (best === null) return <span className="text-xs text-fg-3">Not taken</span>;
   const full = best >= total;
-  const color = full ? "var(--color-healthy)" : "var(--color-fg-subtle)";
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 font-mono text-[10px] font-medium"
-      style={{
-        color,
-        borderColor: `color-mix(in srgb, ${color} 45%, transparent)`,
-        background: `color-mix(in srgb, ${color} 10%, transparent)`,
-      }}
+      className={`tnum inline-flex items-center gap-1 text-xs ${full ? "text-ok-fg" : "text-fg-2"}`}
     >
-      {full ? "✓ " : ""}
+      {full && <CheckGlyph size={11} />}
       Best {best}/{total}
     </span>
   );

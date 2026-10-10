@@ -1,30 +1,30 @@
 "use client";
 
+import { CheckGlyph } from "@/components/ui";
 import { useEffect, useState } from "react";
 
-/** Shows a "Solved" marker for a challenge the viewer has passed (per-browser). */
+/**
+ * Whether the viewer has passed a challenge (per-browser). Shows a skeleton
+ * until storage has been read, so the row never claims the wrong state.
+ */
 export function SolvedBadge({ slug }: { slug: string }) {
-  const [solved, setSolved] = useState(false);
+  const [solved, setSolved] = useState<boolean | null>(null);
 
   useEffect(() => {
     try {
       setSolved(localStorage.getItem(`bp.solved.${slug}`) === "1");
     } catch {
-      // storage unavailable — show nothing.
+      setSolved(false); // storage unavailable — progress is a convenience.
     }
   }, [slug]);
 
-  if (!solved) return null;
-  return (
-    <span
-      className="inline-flex items-center gap-1 rounded-md border px-2 py-0.5 font-mono text-[10px] font-medium"
-      style={{
-        color: "var(--color-healthy)",
-        borderColor: "color-mix(in srgb, var(--color-healthy) 45%, transparent)",
-        background: "color-mix(in srgb, var(--color-healthy) 10%, transparent)",
-      }}
-    >
-      ✓ Solved
+  if (solved === null) return <span className="skeleton h-3 w-14" aria-hidden />;
+  return solved ? (
+    <span className="inline-flex items-center gap-1 text-xs text-ok-fg">
+      <CheckGlyph size={11} />
+      Solved
     </span>
+  ) : (
+    <span className="text-xs text-fg-3">Not solved</span>
   );
 }

@@ -20,12 +20,13 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { KindIcon } from "@/components/icons";
+import { CheckGlyph, CrossGlyph } from "@/components/ui";
 import type { Challenge } from "@/content/challenges/schema";
 import { NODE_DEFAULTS, makeNode } from "@/sim/defaults";
 import { validateDesign } from "@/sim/design";
 import { type ScoreResult, scoreDesign } from "@/sim/score";
 import type { NodeKind, SystemGraph } from "@/sim/types";
-import { createContext, useCallback, useContext, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 
 interface DesignData extends Record<string, unknown> {
   kind: NodeKind;
@@ -49,14 +50,14 @@ const ActionsContext = createContext<Actions>({
 });
 
 function utilColor(util: number, isBottleneck: boolean): string {
-  if (util >= 0.9) return "var(--color-danger)";
+  if (util >= 0.9) return "var(--color-bad)";
   if (isBottleneck) return "var(--color-warn)";
   if (util >= 0.75) return "var(--color-warn)";
-  return "var(--color-healthy)";
+  return "var(--color-ok)";
 }
 
 const handleClass =
-  "!h-3.5 !w-3.5 !border-2 !border-[var(--color-ink)] !bg-[var(--color-brand-bright)] transition-transform hover:!scale-125";
+  "!h-3 !w-3 !border-2 !border-[var(--color-canvas)] !bg-[var(--color-fg-2)] transition-[background-color,transform] duration-150 ease-out hover:!scale-125 hover:!bg-[var(--color-accent)]";
 
 /** Arrange nodes left-to-right by their depth from the entry (a tidy layered layout). */
 function layoutGraph(nodes: DesignNode[], edges: Edge[]): DesignNode[] {
@@ -89,7 +90,7 @@ function layoutGraph(nodes: DesignNode[], edges: Edge[]): DesignNode[] {
     const d = depth.get(n.id) ?? 0;
     const row = rowByDepth.get(d) ?? 0;
     rowByDepth.set(d, row + 1);
-    return { ...n, position: { x: 40 + d * 210, y: 110 + row * 120 } };
+    return { ...n, position: { x: 40 + d * 240, y: 110 + row * 150 } };
   });
 }
 
@@ -101,99 +102,83 @@ function DesignNodeView({ id, data, selected }: NodeProps<DesignNode>) {
 
   return (
     <div
-      className="w-[184px] rounded-lg border bg-panel px-3 py-2.5 shadow-[0_6px_18px_-12px_rgba(0,0,0,0.6)] transition-colors"
+      className="w-[188px] rounded-md border bg-surface px-3 py-2.5 transition-colors duration-150 ease-out"
       style={{
         borderColor: data.isBottleneck
-          ? "color-mix(in srgb, var(--color-warn) 55%, transparent)"
+          ? "color-mix(in srgb, var(--color-warn) 65%, transparent)"
           : selected
-            ? "var(--color-brand)"
-            : "var(--color-edge)",
+            ? "var(--color-accent)"
+            : "var(--color-line-strong)",
       }}
     >
       {!data.isEntry && <Handle type="target" position={Position.Left} className={handleClass} />}
       <Handle type="source" position={Position.Right} className={handleClass} />
 
       <div className="flex items-center gap-2">
-        <span className="shrink-0 text-brand-bright">
-          <KindIcon kind={data.kind} size={16} />
+        <span className="shrink-0 text-fg-3">
+          <KindIcon kind={data.kind} size={15} />
         </span>
-        <span className="min-w-0 flex-1 truncate text-sm font-medium text-fg">{data.label}</span>
-        {data.replicas > 1 && <span className="replica-pill">×{data.replicas}</span>}
-        {data.fanout && data.fanout > 1 && (
-          <span
-            className="shrink-0 rounded font-mono text-[10px]"
-            style={{
-              color: "var(--color-warn)",
-              background: "color-mix(in srgb, var(--color-warn) 14%, transparent)",
-              border: "1px solid color-mix(in srgb, var(--color-warn) 32%, transparent)",
-              padding: "1px 4px",
-            }}
-            title="This node fans each request out downstream"
+        <span className="min-w-0 flex-1 truncate text-sm text-fg">{data.label}</span>
+        {!data.isEntry && (
+          <button
+            type="button"
+            onClick={() => removeNode(id)}
+            className="nodrag btn btn-ghost btn-icon-xs -mr-1 text-fg-3"
+            aria-label={`Delete ${data.label}`}
           >
-            fan ×{data.fanout}
-          </span>
+            <CrossGlyph size={10} />
+          </button>
         )}
       </div>
 
-      <div className="mt-1 flex items-center justify-between">
-        <span className="font-mono text-[10px] uppercase tracking-wider text-fg-subtle">
-          {data.kind}
+      <div className="mt-1.5 flex items-center justify-between gap-2">
+        <span className="text-xs text-fg-3">
+          {data.isEntry ? "traffic source" : data.kind}
+          {data.fanout && data.fanout > 1 && (
+            <span className="text-warn-fg" title="Each request this node forwards fans out">
+              {" "}
+              · fan ×{data.fanout}
+            </span>
+          )}
         </span>
         {!data.isEntry && (
           <div className="nodrag flex items-center gap-1">
             <button
               type="button"
               onClick={() => changeReplicas(id, -1)}
-              className="btn btn-secondary btn-xs !px-1.5 !py-0.5"
-              aria-label="Fewer replicas"
+              disabled={data.replicas <= 1}
+              className="btn btn-secondary btn-icon-xs"
+              aria-label={`Fewer ${data.label} replicas`}
             >
               −
             </button>
+            <span className="tnum w-7 text-center text-xs text-fg">×{data.replicas}</span>
             <button
               type="button"
               onClick={() => changeReplicas(id, 1)}
-              className="btn btn-secondary btn-xs !px-1.5 !py-0.5"
-              aria-label="More replicas"
+              className="btn btn-secondary btn-icon-xs"
+              aria-label={`More ${data.label} replicas`}
             >
               +
-            </button>
-            <button
-              type="button"
-              onClick={() => removeNode(id)}
-              className="btn btn-secondary btn-xs btn-break !px-1.5 !py-0.5"
-              aria-label="Delete node"
-            >
-              ×
             </button>
           </div>
         )}
       </div>
 
-      {hasResult && (
-        <div className="mt-2 flex items-center gap-2">
-          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-ink">
+      {hasResult && !data.isEntry && (
+        <div className="mt-2.5 flex items-center gap-2">
+          <div className="h-1 flex-1 overflow-hidden rounded-full bg-fill-2">
             <div
               className="h-full rounded-full"
               style={{ width: `${Math.min(100, pct)}%`, backgroundColor: color }}
             />
           </div>
-          <span className="tnum w-9 text-right text-[10px]" style={{ color }}>
+          <span className="tnum w-9 text-right text-[11px]" style={{ color }}>
             {pct}%
           </span>
         </div>
       )}
-      {data.isBottleneck && (
-        <span
-          className="mt-1 inline-block rounded font-mono text-[9px] font-medium tracking-wider"
-          style={{
-            color: "var(--color-warn)",
-            background: "color-mix(in srgb, var(--color-warn) 14%, transparent)",
-            padding: "1px 4px",
-          }}
-        >
-          BOTTLENECK
-        </span>
-      )}
+      {data.isBottleneck && <p className="mt-1 text-[11px] font-medium text-warn-fg">Bottleneck</p>}
     </div>
   );
 }
@@ -263,7 +248,7 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
         return ns.concat({
           id,
           type: "design",
-          position: { x: maxX + 210, y: 170 },
+          position: { x: maxX + 240, y: 170 },
           data: { kind, label: NODE_DEFAULTS[kind].label, replicas: 1, isEntry: false, fanout },
         });
       });
@@ -341,9 +326,23 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
     if (res.pass) markSolved(challenge.slug);
   }, [nodes, edges, challenge, setNodes]);
 
+  // ⌘/Ctrl + Enter runs the design from anywhere on the page.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        run();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [run]);
+
+  const isEmpty = nodes.length === 1 && edges.length === 0;
+
   return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_340px]">
-      <div className="card h-[560px] overflow-hidden">
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="panel relative h-[620px] overflow-hidden">
         <ActionsContext.Provider value={{ changeReplicas, removeNode }}>
           <ReactFlow
             nodes={nodes}
@@ -354,156 +353,206 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
             nodeTypes={nodeTypes}
             colorMode="dark"
             fitView
+            fitViewOptions={{ maxZoom: 1 }}
             connectionRadius={30}
             defaultEdgeOptions={{
               type: "smoothstep",
-              style: { stroke: "var(--color-edge-strong)", strokeWidth: 1.5 },
+              style: { strokeWidth: 1.5 },
             }}
             proOptions={{ hideAttribution: true }}
           >
-            <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="#212838" />
+            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#2a2a2a" />
             <Controls showInteractive={false} />
-            <Panel position="top-left">
-              <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-edge bg-ink/85 p-1.5 backdrop-blur">
-                <span className="px-1.5 font-mono text-[10px] uppercase tracking-wider text-fg-subtle">
-                  Add
-                </span>
+            <Panel position="top-left" className="!m-3">
+              <div className="flex flex-wrap items-center gap-1 rounded-md border border-line-strong bg-surface-2/95 p-1 backdrop-blur-sm">
+                <span className="px-2 text-xs text-fg-3">Add</span>
                 {challenge.palette.map((kind) => (
                   <button
                     key={kind}
                     type="button"
                     onClick={() => addNode(kind)}
-                    className="btn btn-secondary btn-xs"
+                    className="btn btn-ghost btn-sm"
                     title={NODE_DEFAULTS[kind].blurb}
                   >
                     <KindIcon kind={kind} size={13} />
                     {NODE_DEFAULTS[kind].label}
                   </button>
                 ))}
-                <span aria-hidden className="mx-0.5 h-5 w-px bg-edge" />
-                <button type="button" onClick={tidy} className="btn btn-secondary btn-xs">
+                <span aria-hidden className="mx-1 h-4 w-px bg-line-strong" />
+                <button
+                  type="button"
+                  onClick={tidy}
+                  disabled={nodes.length < 2}
+                  className="btn btn-ghost btn-sm"
+                >
                   Tidy
                 </button>
               </div>
             </Panel>
           </ReactFlow>
         </ActionsContext.Provider>
-      </div>
 
-      <aside className="card flex flex-col gap-4 p-4">
-        <div>
-          <p className="eyebrow mb-1.5">Objective</p>
-          <p className="text-sm leading-relaxed text-fg-muted">{challenge.prompt}</p>
-        </div>
-
-        <div>
-          <p className="mb-2 text-[11px] font-medium uppercase tracking-[0.08em] text-fg-subtle">
-            Targets
-          </p>
-          <ul className="space-y-1.5 text-xs text-fg-muted">
-            <li className="flex justify-between gap-2">
-              <span>P99 latency</span>
-              <span className="tnum text-fg">≤ {challenge.slo.p99Ms} ms</span>
-            </li>
-            <li className="flex justify-between gap-2">
-              <span>Error rate</span>
-              <span className="tnum text-fg">
-                ≤ {(challenge.slo.maxErrorRate * 100).toFixed(0)}%
-              </span>
-            </li>
-            <li className="flex justify-between gap-2">
-              <span>Throughput</span>
-              <span className="tnum text-fg">
-                ≥ {challenge.slo.minThroughputRps.toLocaleString()} rps
-              </span>
-            </li>
-          </ul>
-        </div>
-
-        <div className="flex gap-2">
-          <button type="button" onClick={run} className="btn btn-primary flex-1">
-            Run design
-          </button>
-          <button type="button" onClick={resetCanvas} className="btn btn-secondary">
-            Reset
-          </button>
-        </div>
-
-        {errors.length > 0 && (
-          <div
-            className="rounded-lg border px-3 py-2.5 text-xs"
-            style={{
-              borderColor: "color-mix(in srgb, var(--color-warn) 45%, transparent)",
-              background: "color-mix(in srgb, var(--color-warn) 6%, transparent)",
-            }}
-          >
-            <p className="mb-1 font-medium" style={{ color: "var(--color-warn)" }}>
-              Fix before running
+        {isEmpty && (
+          <div className="pointer-events-none absolute inset-x-0 bottom-6 flex justify-center px-4">
+            <p className="max-w-md rounded-md border border-line-strong bg-surface-2 px-4 py-3 text-center text-xs leading-relaxed text-fg-2">
+              Add a component from the toolbar, then drag from a node&apos;s right edge to the next
+              one. Traffic follows each node&apos;s first connection, starting at the Client.
             </p>
-            <ul className="list-inside list-disc space-y-0.5 text-fg-muted">
-              {errors.map((e) => (
-                <li key={e}>{e}</li>
-              ))}
-            </ul>
           </div>
         )}
+      </div>
 
-        {result && <Results result={result} solution={challenge.solution} />}
+      <aside
+        className="panel flex flex-col self-start overflow-hidden"
+        aria-label="Challenge brief"
+      >
+        <section className="border-b border-line p-4">
+          <h2 className="text-xs text-fg-3">Objective</h2>
+          <p className="mt-1.5 text-sm leading-relaxed text-fg-2">{challenge.prompt}</p>
+          <ul className="mt-3 space-y-1.5">
+            {challenge.requirements.map((r) => (
+              <li key={r} className="flex gap-2 text-xs leading-relaxed text-fg-2">
+                <span aria-hidden className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-fg-3" />
+                {r}
+              </li>
+            ))}
+          </ul>
+        </section>
 
-        <button
-          type="button"
-          onClick={() => setShowHint((s) => !s)}
-          className="mt-auto self-start text-xs font-medium text-brand-bright hover:underline"
-        >
-          {showHint ? "Hide hint" : "Show hint"}
-        </button>
-        {showHint && challenge.hint && (
-          <p className="text-xs leading-relaxed text-fg-subtle">{challenge.hint}</p>
-        )}
+        <section className="border-b border-line p-4">
+          <h2 className="text-xs text-fg-3">Targets</h2>
+          <dl className="mt-2 space-y-1.5 text-xs">
+            <div className="flex justify-between gap-2">
+              <dt className="text-fg-2">P99 latency</dt>
+              <dd className="tnum text-fg">≤ {challenge.slo.p99Ms} ms</dd>
+            </div>
+            <div className="flex justify-between gap-2">
+              <dt className="text-fg-2">Error rate</dt>
+              <dd className="tnum text-fg">≤ {(challenge.slo.maxErrorRate * 100).toFixed(0)}%</dd>
+            </div>
+            <div className="flex justify-between gap-2">
+              <dt className="text-fg-2">Throughput</dt>
+              <dd className="tnum text-fg">
+                ≥ {challenge.slo.minThroughputRps.toLocaleString()} rps
+              </dd>
+            </div>
+          </dl>
+        </section>
+
+        <section className="p-4">
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={run}
+              className="btn btn-primary flex-1"
+              title="Run design (⌘/Ctrl + Enter)"
+            >
+              Run design
+              <span aria-hidden className="ml-1 text-[11px] font-normal text-black/50">
+                ⌘↵
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={resetCanvas}
+              disabled={isEmpty && !result}
+              className="btn btn-secondary"
+            >
+              Reset
+            </button>
+          </div>
+
+          {errors.length > 0 && (
+            <div
+              role="alert"
+              className="mt-3 rounded-md border border-warn/40 bg-warn/[0.07] px-3 py-2.5 text-xs"
+            >
+              <p className="font-medium text-warn-fg">Fix before running</p>
+              <ul className="mt-1 list-inside list-disc space-y-0.5 text-fg-2">
+                {errors.map((e) => (
+                  <li key={e}>{e}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {result ? (
+            <Results result={result} solution={challenge.solution} />
+          ) : (
+            errors.length === 0 && (
+              <p className="mt-3 text-xs leading-relaxed text-fg-3">
+                Run the design to score it against the targets. Each node then shows its
+                utilization, and the bottleneck is marked.
+              </p>
+            )
+          )}
+
+          {challenge.hint && (
+            <details className="group mt-4 border-t border-line pt-3">
+              <summary className="focus-ring cursor-pointer list-none rounded-sm text-xs text-fg-2 transition-colors duration-150 ease-out hover:text-fg [&::-webkit-details-marker]:hidden">
+                <span className="group-open:hidden">Show hint</span>
+                <span className="hidden group-open:inline">Hide hint</span>
+              </summary>
+              <p className="mt-2 text-xs leading-relaxed text-fg-3">{challenge.hint}</p>
+            </details>
+          )}
+        </section>
       </aside>
     </div>
   );
 }
 
 function Results({ result, solution }: { result: ScoreResult; solution?: string }) {
-  const verdictColor = result.pass ? "var(--color-healthy)" : "var(--color-danger)";
+  const bottleneck = result.state.nodes.find((n) => n.id === result.state.bottleneckId);
   return (
-    <div className="rounded-lg border border-edge bg-raised p-3">
-      <div className="flex items-center gap-2">
+    <div className="mt-4" aria-live="polite">
+      <p
+        className={`flex items-center gap-2 text-sm font-medium ${
+          result.pass ? "text-ok-fg" : "text-bad-fg"
+        }`}
+      >
         <span
-          className="flex h-6 items-center rounded px-2 font-mono text-[11px] font-semibold uppercase tracking-wider"
-          style={{
-            color: verdictColor,
-            background: `color-mix(in srgb, ${verdictColor} 14%, transparent)`,
-          }}
-        >
-          {result.pass ? "SLO met" : "SLO missed"}
-        </span>
-      </div>
-      <ul className="mt-3 space-y-2">
-        {result.checks.map((c) => (
-          <li key={c.label} className="flex items-center justify-between gap-2 text-xs">
-            <span className="flex items-center gap-1.5">
-              <span style={{ color: c.ok ? "var(--color-healthy)" : "var(--color-danger)" }}>
-                {c.ok ? "✓" : "✗"}
-              </span>
-              <span className="text-fg-muted">{c.label}</span>
-            </span>
-            <span className="tnum text-right">
-              <span style={{ color: c.ok ? "var(--color-fg)" : "var(--color-danger)" }}>
-                {c.actual}
-              </span>
-              <span className="text-fg-subtle"> / {c.target}</span>
-            </span>
-          </li>
-        ))}
-      </ul>
+          aria-hidden
+          className={`h-1.5 w-1.5 rounded-full ${result.pass ? "bg-ok" : "bg-bad"}`}
+        />
+        {result.pass ? "SLO met" : "SLO missed"}
+      </p>
+
+      <table className="mt-2 w-full text-xs">
+        <tbody className="divide-y divide-line">
+          {result.checks.map((c) => (
+            <tr key={c.label}>
+              <td className="py-1.5 pr-2">
+                <span className="inline-flex items-center gap-1.5 text-fg-2">
+                  {c.ok ? (
+                    <CheckGlyph size={11} className="text-ok-fg" />
+                  ) : (
+                    <CrossGlyph size={11} className="text-bad-fg" />
+                  )}
+                  {c.label}
+                </span>
+              </td>
+              <td className="tnum py-1.5 text-right">
+                <span className={c.ok ? "text-fg" : "text-bad-fg"}>{c.actual}</span>
+                <span className="text-fg-3"> / {c.target}</span>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {!result.pass && bottleneck && (
+        <p className="mt-3 text-xs leading-relaxed text-fg-2">
+          <span className="text-warn-fg">{bottleneck.label}</span> is the bottleneck at{" "}
+          <span className="tnum">{Math.round(bottleneck.utilization * 100)}%</span>. Relieve it —
+          more replicas, or keep traffic from reaching it — and run again.
+        </p>
+      )}
+
       {result.pass && solution && (
-        <div className="mt-3 border-t border-edge pt-3">
-          <p className="eyebrow mb-1.5" style={{ color: "var(--color-healthy)" }}>
-            Reference approach
-          </p>
-          <p className="text-xs leading-relaxed text-fg-muted">{solution}</p>
+        <div className="mt-3 rounded-md border border-line bg-surface-2 p-3">
+          <p className="text-xs font-medium text-fg">Reference approach</p>
+          <p className="mt-1 text-xs leading-relaxed text-fg-2">{solution}</p>
         </div>
       )}
     </div>
