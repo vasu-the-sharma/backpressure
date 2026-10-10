@@ -22,11 +22,41 @@ export const whatsappGroupFanout: Challenge = {
   ],
   palette: ["gateway", "lb", "service", "queue", "cache", "db"],
   requiredKinds: ["cache", "db"],
-  fanoutKind: "service",
-  fanoutFactor: 20,
+  kinds: { service: { label: "Fan-out service", fanout: 20 } },
   load: { label: "1k msgs/s ×20", arrivalRatePerTick: ratePerTickFromRps(1000), seed: 1 },
   slo: { p99Ms: 600, maxErrorRate: 0.01, minThroughputRps: 19_000 },
   hint: "The fan-out turns 1,000 messages/sec into ~20,000 deliveries/sec — far too many to write durably one by one. Put a delivery cache in front: online members (~90%) are served from it instantly, and only the offline misses reach the durable store.",
   solution:
     "Client → API Gateway → Fan-out service (×20) → Delivery cache → Message store. The fan-out produces ~20,000 deliveries/sec; the cache serves the ~90% of members who are online, so the durable store only handles the ~10% who are offline — no store scaling required.",
+  calibration: {
+    // The trap: a cache in the wrong place — every delivery still hits the store first.
+    naive: {
+      nodes: [
+        { id: "gw", kind: "gateway" },
+        { id: "fan", kind: "service" },
+        { id: "store", kind: "db" },
+        { id: "cache", kind: "cache" },
+      ],
+      edges: [
+        ["client", "gw"],
+        ["gw", "fan"],
+        ["fan", "store"],
+        ["store", "cache"],
+      ],
+    },
+    reference: {
+      nodes: [
+        { id: "gw", kind: "gateway" },
+        { id: "fan", kind: "service" },
+        { id: "cache", kind: "cache" },
+        { id: "store", kind: "db" },
+      ],
+      edges: [
+        ["client", "gw"],
+        ["gw", "fan"],
+        ["fan", "cache"],
+        ["cache", "store"],
+      ],
+    },
+  },
 };

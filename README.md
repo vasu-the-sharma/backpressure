@@ -166,6 +166,17 @@ Node 20 or newer (see `.nvmrc`).
 - Accounts, saved progress, and billing on Postgres, when there is something to
   bill for.
 
+## Adding a challenge
+
+Create `src/content/challenges/<slug>.ts`, export a `Challenge`, and register it
+in `src/content/challenges/registry.ts`. Scenario behaviour goes in `kinds`
+(per node kind: `fanout`, `publish` + `minSubscribers` for a pub-sub topic,
+`bandwidthPerTick` with `load.requestBytes` for bandwidth-bound nodes,
+`cacheHitRatio`, `maxReplicas`). Every challenge must ship a `calibration`
+pair — the obvious design that should fail and the reference that should pass —
+and `calibration.test.ts` runs both through the same builder the canvas uses,
+so a challenge that stops teaching its lesson fails CI.
+
 ## Adding a system
 
 Create `src/content/systems/<slug>.ts`, export a `SystemInput`, and register it

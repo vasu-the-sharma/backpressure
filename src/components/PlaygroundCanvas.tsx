@@ -21,11 +21,17 @@ import {
 import "@xyflow/react/dist/style.css";
 import { KindIcon } from "@/components/icons";
 import { CheckGlyph, CrossGlyph } from "@/components/ui";
-import type { Challenge } from "@/content/challenges/schema";
-import { NODE_DEFAULTS, makeNode } from "@/sim/defaults";
-import { validateDesign } from "@/sim/design";
-import { type ScoreResult, scoreDesign } from "@/sim/score";
-import type { NodeKind, SystemGraph } from "@/sim/types";
+import {
+  ENTRY_ID,
+  buildDesignGraph,
+  kindLabel,
+  kindOverride,
+  validateChallengeDesign,
+} from "@/content/challenges/build";
+import type { Challenge, DesignSpec } from "@/content/challenges/schema";
+import { NODE_DEFAULTS } from "@/sim/defaults";
+import { type ScoreResult, TICK_MS, scoreDesign } from "@/sim/score";
+import type { NodeKind } from "@/sim/types";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 
 interface DesignData extends Record<string, unknown> {
@@ -33,21 +39,69 @@ interface DesignData extends Record<string, unknown> {
   label: string;
   replicas: number;
   isEntry: boolean;
-  /** Fan-out factor baked in by the scenario (>1 means this node amplifies). */
-  fanout?: number;
   util?: number;
   isBottleneck?: boolean;
 }
 type DesignNode = Node<DesignData, "design">;
 
 interface Actions {
+  challenge: Challenge | null;
+  /** Outgoing edge count per node, for topic nodes' subscriber readout. */
+  outDegree: Map<string, number>;
   changeReplicas: (id: string, delta: number) => void;
   removeNode: (id: string) => void;
 }
 const ActionsContext = createContext<Actions>({
+  challenge: null,
+  outDegree: new Map(),
   changeReplicas: () => {},
   removeNode: () => {},
 });
+
+/** Bytes per tick → a human rate ("2.4 GB/s"). */
+export function formatBandwidth(bytesPerTick: number): string {
+  const perSec = (bytesPerTick * 1000) / TICK_MS;
+  const units = ["B/s", "KB/s", "MB/s", "GB/s", "TB/s"];
+  let v = perSec;
+  let u = 0;
+  while (v >= 1000 && u < units.length - 1) {
+    v /= 1000;
+    u += 1;
+  }
+  return `${v >= 10 ? Math.round(v) : v.toFixed(1)} ${units[u]}`;
+}
+
+/** Plain-language rules for every kind this scenario changes, shown in the brief. */
+function scenarioRules(challenge: Challenge): string[] {
+  const rules: string[] = [];
+  for (const kind of challenge.palette) {
+    const o = kindOverride(challenge, kind);
+    const name = kindLabel(challenge, kind);
+    if (o.fanout && o.fanout > 1) rules.push(`${name} fans every request out ×${o.fanout}.`);
+    if (o.publish) {
+      rules.push(
+        `${name} is a pub-sub topic: it delivers every event to all of its connections${
+          o.minSubscribers ? ` — connect at least ${o.minSubscribers}` : ""
+        }.`,
+      );
+    }
+    if (o.bandwidthPerTick !== undefined) {
+      rules.push(`${name} is bandwidth-bound: ${formatBandwidth(o.bandwidthPerTick)} per replica.`);
+    }
+    if (o.cacheHitRatio !== undefined) {
+      rules.push(`${name} serves ${Math.round(o.cacheHitRatio * 100)}% of requests itself.`);
+    }
+    if (o.maxReplicas !== undefined) {
+      rules.push(`${name} is capped at ${o.maxReplicas} replica${o.maxReplicas > 1 ? "s" : ""}.`);
+    }
+  }
+  if (challenge.load.requestBytes && challenge.load.requestBytes > 1) {
+    rules.push(
+      `Each request carries ${formatBandwidth((challenge.load.requestBytes * TICK_MS) / 1000).replace("/s", "")}.`,
+    );
+  }
+  return rules;
+}
 
 function utilColor(util: number, isBottleneck: boolean): string {
   if (util >= 0.9) return "var(--color-bad)";
@@ -95,7 +149,10 @@ function layoutGraph(nodes: DesignNode[], edges: Edge[]): DesignNode[] {
 }
 
 function DesignNodeView({ id, data, selected }: NodeProps<DesignNode>) {
-  const { changeReplicas, removeNode } = useContext(ActionsContext);
+  const { challenge, outDegree, changeReplicas, removeNode } = useContext(ActionsContext);
+  const o = challenge && !data.isEntry ? kindOverride(challenge, data.kind) : {};
+  const atMax = o.maxReplicas !== undefined && data.replicas >= o.maxReplicas;
+  const subs = outDegree.get(id) ?? 0;
   const hasResult = typeof data.util === "number";
   const pct = Math.round((data.util ?? 0) * 100);
   const color = utilColor(data.util ?? 0, !!data.isBottleneck);
@@ -132,12 +189,12 @@ function DesignNodeView({ id, data, selected }: NodeProps<DesignNode>) {
       </div>
 
       <div className="mt-1.5 flex items-center justify-between gap-2">
-        <span className="text-xs text-fg-3">
-          {data.isEntry ? "traffic source" : data.kind}
-          {data.fanout && data.fanout > 1 && (
+        <span className="min-w-0 truncate text-xs text-fg-3">
+          {data.isEntry ? "traffic source" : o.publish ? `topic → ${subs}` : data.kind}
+          {o.fanout && o.fanout > 1 && (
             <span className="text-warn-fg" title="Each request this node forwards fans out">
               {" "}
-              · fan ×{data.fanout}
+              · fan ×{o.fanout}
             </span>
           )}
         </span>
@@ -156,6 +213,8 @@ function DesignNodeView({ id, data, selected }: NodeProps<DesignNode>) {
             <button
               type="button"
               onClick={() => changeReplicas(id, 1)}
+              disabled={atMax}
+              title={atMax ? `Capped at ${o.maxReplicas} in this scenario` : undefined}
               className="btn btn-secondary btn-icon-xs"
               aria-label={`More ${data.label} replicas`}
             >
@@ -164,6 +223,12 @@ function DesignNodeView({ id, data, selected }: NodeProps<DesignNode>) {
           </div>
         )}
       </div>
+
+      {o.bandwidthPerTick !== undefined && (
+        <p className="mt-1 text-[11px] text-fg-3">
+          {formatBandwidth(o.bandwidthPerTick * data.replicas)} egress
+        </p>
+      )}
 
       {hasResult && !data.isEntry && (
         <div className="mt-2.5 flex items-center gap-2">
@@ -187,7 +252,7 @@ const nodeTypes = { design: DesignNodeView };
 
 function entryNode(): DesignNode {
   return {
-    id: "client",
+    id: ENTRY_ID,
     type: "design",
     position: { x: 40, y: 170 },
     deletable: false,
@@ -208,7 +273,6 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [result, setResult] = useState<ScoreResult | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
-  const [showHint, setShowHint] = useState(false);
   const counter = useRef(0);
   const { fitView } = useReactFlow();
 
@@ -223,15 +287,23 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
   const onConnect = useCallback(
     (c: Connection) => {
       clearScore();
-      // One outgoing edge per node, mirroring the engine's primary-path routing.
-      setEdges((eds) =>
-        addEdge(
+      const source = nodes.find((n) => n.id === c.source);
+      const isTopic = source ? !!kindOverride(challenge, source.data.kind).publish : false;
+      setEdges((eds) => {
+        // A pub-sub topic delivers to every connection, so it keeps them all.
+        if (isTopic) {
+          if (eds.some((e) => e.source === c.source && e.target === c.target)) return eds;
+          return addEdge(c, eds);
+        }
+        // Anything else routes to its first connection only (the engine's
+        // primary path), so a new connection replaces the old one.
+        return addEdge(
           c,
           eds.filter((e) => e.source !== c.source),
-        ),
-      );
+        );
+      });
     },
-    [setEdges, clearScore],
+    [setEdges, clearScore, nodes, challenge],
   );
 
   const addNode = useCallback(
@@ -241,15 +313,11 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
       const id = `${kind}-${counter.current}`;
       setNodes((ns) => {
         const maxX = ns.reduce((m, n) => Math.max(m, n.position.x), 0);
-        const fanout =
-          kind === challenge.fanoutKind && challenge.fanoutFactor
-            ? challenge.fanoutFactor
-            : undefined;
         return ns.concat({
           id,
           type: "design",
           position: { x: maxX + 240, y: 170 },
-          data: { kind, label: NODE_DEFAULTS[kind].label, replicas: 1, isEntry: false, fanout },
+          data: { kind, label: kindLabel(challenge, kind), replicas: 1, isEntry: false },
         });
       });
     },
@@ -260,14 +328,15 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
     (id: string, delta: number) => {
       clearScore();
       setNodes((ns) =>
-        ns.map((node) =>
-          node.id === id
-            ? { ...node, data: { ...node.data, replicas: Math.max(1, node.data.replicas + delta) } }
-            : node,
-        ),
+        ns.map((node) => {
+          if (node.id !== id) return node;
+          const max = kindOverride(challenge, node.data.kind).maxReplicas ?? 64;
+          const replicas = Math.min(max, Math.max(1, node.data.replicas + delta));
+          return { ...node, data: { ...node.data, replicas } };
+        }),
       );
     },
-    [setNodes, clearScore],
+    [setNodes, clearScore, challenge],
   );
 
   const removeNode = useCallback(
@@ -292,15 +361,48 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
     setErrors([]);
   }, [setNodes, setEdges]);
 
+  const loadDesign = useCallback(
+    (design: DesignSpec) => {
+      counter.current = design.nodes.length;
+      const loaded: DesignNode[] = [
+        entryNode(),
+        ...design.nodes.map(
+          (n): DesignNode => ({
+            id: n.id,
+            type: "design",
+            position: { x: 0, y: 0 },
+            data: {
+              kind: n.kind,
+              label: kindLabel(challenge, n.kind),
+              replicas: n.replicas ?? 1,
+              isEntry: false,
+            },
+          }),
+        ),
+      ];
+      const loadedEdges: Edge[] = design.edges.map(([from, to]) => ({
+        id: `${from}->${to}`,
+        source: from,
+        target: to,
+      }));
+      setEdges(loadedEdges);
+      setNodes(layoutGraph(loaded, loadedEdges));
+      setResult(null);
+      setErrors([]);
+      requestAnimationFrame(() => fitView({ padding: 0.2, duration: 300 }));
+    },
+    [challenge, setEdges, setNodes, fitView],
+  );
+
   const run = useCallback(() => {
-    const graph: SystemGraph = {
-      nodes: nodes.map((node) =>
-        makeNode(node.data.kind, node.id, node.data.replicas, node.data.fanout ?? 1),
-      ),
-      edges: edges.map((e) => ({ from: e.source, to: e.target })),
-      entryId: "client",
+    const design: DesignSpec = {
+      nodes: nodes
+        .filter((n) => !n.data.isEntry)
+        .map((n) => ({ id: n.id, kind: n.data.kind, replicas: n.data.replicas })),
+      edges: edges.map((e) => [e.source, e.target]),
     };
-    const problems = validateDesign(graph, challenge.requiredKinds);
+    const graph = buildDesignGraph(challenge, design);
+    const problems = validateChallengeDesign(challenge, graph);
     if (problems.length > 0) {
       setErrors(problems);
       setResult(null);
@@ -339,11 +441,14 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
   }, [run]);
 
   const isEmpty = nodes.length === 1 && edges.length === 0;
+  const outDegree = new Map<string, number>();
+  for (const e of edges) outDegree.set(e.source, (outDegree.get(e.source) ?? 0) + 1);
+  const rules = scenarioRules(challenge);
 
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
       <div className="panel relative h-[620px] overflow-hidden">
-        <ActionsContext.Provider value={{ changeReplicas, removeNode }}>
+        <ActionsContext.Provider value={{ challenge, outDegree, changeReplicas, removeNode }}>
           <ReactFlow
             nodes={nodes}
             edges={edges}
@@ -375,7 +480,7 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
                     title={NODE_DEFAULTS[kind].blurb}
                   >
                     <KindIcon kind={kind} size={13} />
-                    {NODE_DEFAULTS[kind].label}
+                    {kindLabel(challenge, kind)}
                   </button>
                 ))}
                 <span aria-hidden className="mx-1 h-4 w-px bg-line-strong" />
@@ -418,6 +523,20 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
             ))}
           </ul>
         </section>
+
+        {rules.length > 0 && (
+          <section className="border-b border-line p-4">
+            <h2 className="text-xs text-fg-3">Scenario rules</h2>
+            <ul className="mt-2 space-y-1.5">
+              {rules.map((r) => (
+                <li key={r} className="flex gap-2 text-xs leading-relaxed text-fg-2">
+                  <span aria-hidden className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-warn" />
+                  {r}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
         <section className="border-b border-line p-4">
           <h2 className="text-xs text-fg-3">Targets</h2>
@@ -477,7 +596,11 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
           )}
 
           {result ? (
-            <Results result={result} solution={challenge.solution} />
+            <Results
+              result={result}
+              solution={challenge.solution}
+              onLoadReference={() => loadDesign(challenge.calibration.reference)}
+            />
           ) : (
             errors.length === 0 && (
               <p className="mt-3 text-xs leading-relaxed text-fg-3">
@@ -502,7 +625,15 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
   );
 }
 
-function Results({ result, solution }: { result: ScoreResult; solution?: string }) {
+function Results({
+  result,
+  solution,
+  onLoadReference,
+}: {
+  result: ScoreResult;
+  solution?: string;
+  onLoadReference: () => void;
+}) {
   const bottleneck = result.state.nodes.find((n) => n.id === result.state.bottleneckId);
   return (
     <div className="mt-4" aria-live="polite">
@@ -553,6 +684,9 @@ function Results({ result, solution }: { result: ScoreResult; solution?: string 
         <div className="mt-3 rounded-md border border-line bg-surface-2 p-3">
           <p className="text-xs font-medium text-fg">Reference approach</p>
           <p className="mt-1 text-xs leading-relaxed text-fg-2">{solution}</p>
+          <button type="button" onClick={onLoadReference} className="btn btn-secondary btn-sm mt-3">
+            Load reference design
+          </button>
         </div>
       )}
     </div>
