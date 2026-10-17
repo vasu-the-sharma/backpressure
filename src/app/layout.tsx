@@ -48,9 +48,6 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
               <Logo compact />
             </Link>
             <SiteNav />
-            <p className="ml-auto hidden text-xs text-fg-3 md:block">
-              Simulated model · not production telemetry
-            </p>
           </div>
         </header>
 
@@ -63,8 +60,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             <div className="max-w-sm">
               <Logo />
               <p className="mt-3 text-xs leading-relaxed text-fg-3">
-                A teaching model of how systems behave under load. Numbers come from a seeded
-                simulator — directionally honest, not production telemetry.
+                Break it here, not in production.
               </p>
             </div>
             <nav aria-label="Footer">
