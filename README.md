@@ -31,8 +31,8 @@ The architecture is the point of this project, so the decisions are explicit.
 their graphs, their write-ups) is read-mostly and authored in the repo, so it is
 statically generated at build time. Pages serve from the edge, render instantly,
 and are fully indexable. The simulator is pure computation that belongs in the
-browser; a server would add latency and nothing else. There is no backend in the
-MVP because nothing in the MVP needs one.
+browser; a server would add latency and nothing else. Accounts are the first
+backend surface (see "Accounts and roles").
 
 **Content lives in the repo, not a database.** Each system is a typed module
 validated by a schema at build time. That buys version history, pull-request
@@ -165,6 +165,44 @@ Node 20 or newer (see `.nvmrc`).
   its schema. First real backend surface.
 - Accounts, saved progress, and billing on Postgres, when there is something to
   bill for.
+
+## Accounts and roles
+
+Signing in is optional: every page works without an account. Signing in (Google)
+saves a person's Playground runs and quiz results so they, and admins, can see
+their progress.
+
+- **Roles.** Everyone starts as a `client`. Emails in `ADMIN_EMAILS` become
+  `admin` when they sign in; after that, admins promote or demote others from
+  `/admin/users/<id>`. The last admin can't be demoted.
+- **Pages.** `/signin`, `/account` (your progress), `/admin` (every client with
+  last seen, runs, solves and best quiz score) and `/admin/users/<id>`.
+  Non-admins get a 404 on admin pages.
+- **Honest records.** The browser never reports "I passed". It sends the design
+  or the chosen answers, and the server re-grades them with the same engine and
+  content (`src/server/grade.ts`) before storing anything.
+- **Stack.** Auth.js v5 with database sessions, Drizzle ORM, Postgres on Neon.
+  Schema in `src/db/schema.ts`; migrations in `drizzle/` are generated with
+  `npm run db:generate` and applied automatically before every build
+  (`scripts/migrate.mjs`, skipped when `DATABASE_URL` is unset). Server logic is
+  tested against a real in-memory Postgres (PGlite).
+- **Static pages stay static.** The header reads the session in the browser;
+  only `/signin`, `/account` and `/admin` render per request.
+
+### Setting it up
+
+1. **Database.** In the Vercel project: Storage → Create Database → Neon →
+   connect it to all environments. This sets `DATABASE_URL`. Turn on
+   "create a branch for each preview deployment" so PR previews never migrate
+   the production database.
+2. **Google sign-in.** Google Cloud Console → APIs & Services → Credentials →
+   Create OAuth client ID (Web application). Add the redirect URIs
+   `http://localhost:3000/api/auth/callback/google` and
+   `https://<your-domain>/api/auth/callback/google`.
+3. **Env vars** in Vercel (Settings → Environment Variables): `AUTH_SECRET`
+   (`npx auth secret`), `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `ADMIN_EMAILS`.
+4. **Local.** `vercel env pull .env.local`, then `npm run db:migrate` and
+   `npm run dev`. See `.env.example`.
 
 ## Adding a challenge
 

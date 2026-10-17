@@ -19,6 +19,7 @@ import {
   useReactFlow,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
+import { type SaveState, SaveStatus, useSaveProgress } from "@/components/SaveStatus";
 import { KindIcon } from "@/components/icons";
 import { CheckGlyph, CrossGlyph } from "@/components/ui";
 import {
@@ -29,6 +30,7 @@ import {
   validateChallengeDesign,
 } from "@/content/challenges/build";
 import type { Challenge, DesignSpec } from "@/content/challenges/schema";
+import { saveChallengeRun } from "@/server/actions";
 import { NODE_DEFAULTS } from "@/sim/defaults";
 import { type ScoreResult, TICK_MS, scoreDesign } from "@/sim/score";
 import type { NodeKind } from "@/sim/types";
@@ -394,6 +396,8 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
     [challenge, setEdges, setNodes, fitView],
   );
 
+  const { state: saveState, save } = useSaveProgress();
+
   const run = useCallback(() => {
     const design: DesignSpec = {
       nodes: nodes
@@ -426,7 +430,9 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
     );
     setResult(res);
     if (res.pass) markSolved(challenge.slug);
-  }, [nodes, edges, challenge, setNodes]);
+    // The server re-scores the same design before recording it.
+    void save(() => saveChallengeRun({ slug: challenge.slug, design }));
+  }, [nodes, edges, challenge, setNodes, save]);
 
   // ⌘/Ctrl + Enter runs the design from anywhere on the page.
   useEffect(() => {
@@ -600,6 +606,7 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
               result={result}
               solution={challenge.solution}
               onLoadReference={() => loadDesign(challenge.calibration.reference)}
+              saveState={saveState}
             />
           ) : (
             errors.length === 0 && (
@@ -629,10 +636,12 @@ function Results({
   result,
   solution,
   onLoadReference,
+  saveState,
 }: {
   result: ScoreResult;
   solution?: string;
   onLoadReference: () => void;
+  saveState: SaveState;
 }) {
   const bottleneck = result.state.nodes.find((n) => n.id === result.state.bottleneckId);
   return (
@@ -671,6 +680,8 @@ function Results({
           ))}
         </tbody>
       </table>
+
+      <SaveStatus state={saveState} className="mt-2" />
 
       {!result.pass && bottleneck && (
         <p className="mt-3 text-xs leading-relaxed text-fg-2">
