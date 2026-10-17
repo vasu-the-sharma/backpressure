@@ -12,6 +12,6 @@
     "lineWidth": 100
   },
   "files": {
-    "ignore": [".next", "node_modules", "out", "coverage"]
+    "ignore": [".next", "node_modules", "out", "coverage", "drizzle"]
   }
 }

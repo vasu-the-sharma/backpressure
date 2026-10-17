@@ -1,7 +1,9 @@
 "use client";
 
+import { type SaveState, SaveStatus, useSaveProgress } from "@/components/SaveStatus";
 import { CheckGlyph, CrossGlyph } from "@/components/ui";
 import type { Quiz, QuizQuestion } from "@/content/quizzes/schema";
+import { saveQuizAttempt } from "@/server/actions";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
@@ -54,10 +56,19 @@ export function QuizRunner({ quiz }: { quiz: Quiz }) {
     setAnswers((a) => [...a, { selected: picks, correct: sameSet(picks, question.correct) }]);
   }, [question, picks]);
 
+  const { state: saveState, save } = useSaveProgress();
+
   const next = useCallback(() => {
+    if (index + 1 >= total) {
+      // Finished: the server grades the answers themselves, not the score shown here.
+      const chosen = Object.fromEntries(
+        quiz.questions.map((q, i) => [q.id, answers[i]?.selected ?? []]),
+      );
+      void save(() => saveQuizAttempt({ slug: quiz.slug, answers: chosen }));
+    }
     setIndex((i) => i + 1);
     setPicks([]);
-  }, []);
+  }, [index, total, quiz, answers, save]);
 
   const retry = () => {
     setIndex(0);
@@ -94,7 +105,9 @@ export function QuizRunner({ quiz }: { quiz: Quiz }) {
   }, [question, submitted, submit, next, toggle]);
 
   if (atResults) {
-    return <Results quiz={quiz} answers={answers} score={score} onRetry={retry} />;
+    return (
+      <Results quiz={quiz} answers={answers} score={score} onRetry={retry} saveState={saveState} />
+    );
   }
   if (!question) return null;
 
@@ -258,11 +271,13 @@ function Results({
   answers,
   score,
   onRetry,
+  saveState,
 }: {
   quiz: Quiz;
   answers: Answer[];
   score: number;
   onRetry: () => void;
+  saveState: SaveState;
 }) {
   const total = quiz.questions.length;
   const pct = Math.round((score / total) * 100);
@@ -278,6 +293,7 @@ function Results({
           <span className="text-fg-3">/{total}</span>
         </p>
         <p className="mt-3 text-sm text-fg-2">{message}</p>
+        <SaveStatus state={saveState} className="mt-2" />
       </div>
 
       <ol className="divide-y divide-line">
