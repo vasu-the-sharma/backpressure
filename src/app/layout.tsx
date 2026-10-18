@@ -4,7 +4,7 @@ import { SiteNav } from "@/components/SiteNav";
 import { UserMenu } from "@/components/UserMenu";
 import { liveVerticals } from "@/content/verticals";
 import { isAuthConfigured } from "@/server/config";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
@@ -30,7 +30,17 @@ export const metadata: Metadata = {
   description:
     "Interactive, honest models of how large-scale systems behave under load. Send traffic, break a node, scale it, and watch the bottleneck move.",
   applicationName: "Backpressure",
+  // Absolute base for the social image and other metadata URLs.
+  metadataBase: new URL(
+    process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : "http://localhost:3000",
+  ),
+  openGraph: { siteName: "Backpressure", type: "website" },
+  twitter: { card: "summary_large_image" },
 };
+
+export const viewport: Viewport = { themeColor: "#000000" };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (

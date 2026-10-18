@@ -107,6 +107,12 @@ outage). Color is never the only signal; every state also has a label or number.
 - **Primitives**: `.panel`, `.btn` (+ `-primary` / `-secondary` / `-ghost`, sizes),
   `.range`, `.kbd`, `.skeleton`, `.focus-ring`; layout pieces in
   `src/components/ui.tsx`. Radii are 6px (controls) and 8px (panels).
+- **Logo.** The "queue depth" mark: four queues rising toward capacity, the
+  last spilling over in amber. Its geometry lives once in `src/lib/brand.ts`
+  and drives the header logo, favicon, app icons and the link-preview image
+  (`src/app/opengraph-image.tsx`). Wordmark: Inter SemiBold at 0.46× the mark,
+  −2.5% tracking. Ready-made files (SVG with outlined text, PNG) are in
+  `public/brand/`; `scripts/brand/generate.swift` regenerates them.
 - **Motion** is entrance-only (`.rise-in`, `<Reveal>`) and honors
   `prefers-reduced-motion`.
 

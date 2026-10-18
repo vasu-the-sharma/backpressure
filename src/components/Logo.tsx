@@ -1,41 +1,58 @@
+import { LOCKUP, MARK_BARS, MARK_BAR_RADIUS, MARK_BAR_WIDTH } from "@/lib/brand";
+
 /**
- * Backpressure logo — the "queue depth" mark.
- *
- * Four queue bars rise toward capacity; the last one has filled and its cap is
- * amber, the same color the app uses for a bottleneck. It is the one place the
- * brand borrows a data-state color, because the mark *is* a queue backing up.
+ * Backpressure logo — the "queue depth" mark (geometry in src/lib/brand.ts).
+ * Bars take the current text color; the overflow cap is always amber.
  */
-
-interface LogoMarkProps {
-  size?: number;
-  className?: string;
-}
-
-export function LogoMark({ size = 20, className }: LogoMarkProps) {
+export function LogoMark({ size = 28, className }: { size?: number; className?: string }) {
   return (
     <svg
       width={size}
       height={size}
-      viewBox="0 0 20 20"
+      viewBox="0 0 100 100"
       fill="none"
       className={className}
       aria-hidden="true"
       focusable="false"
     >
-      <rect x="1" y="12" width="3" height="7" rx="0.75" fill="currentColor" />
-      <rect x="6" y="9" width="3" height="10" rx="0.75" fill="currentColor" />
-      <rect x="11" y="6" width="3" height="13" rx="0.75" fill="currentColor" />
-      <rect x="16" y="4.5" width="3" height="14.5" rx="0.75" fill="currentColor" />
-      <rect x="16" y="1" width="3" height="2.5" rx="0.75" fill="var(--color-warn)" />
+      {MARK_BARS.map((b) => (
+        <rect
+          key={`${b.x}-${b.y}`}
+          x={b.x}
+          y={b.y}
+          width={MARK_BAR_WIDTH}
+          height={b.height}
+          rx={MARK_BAR_RADIUS}
+          fill={b.overflow ? "var(--color-warn)" : "currentColor"}
+        />
+      ))}
     </svg>
   );
 }
 
-export function Logo({ className, compact = false }: { className?: string; compact?: boolean }) {
+/**
+ * Mark + wordmark, in the brand's fixed proportions. `size` is the mark's box;
+ * the wordmark is 0.46× it. `compact` hides the wordmark below the sm breakpoint.
+ */
+export function Logo({
+  size = 30,
+  className,
+  compact = false,
+}: {
+  size?: number;
+  className?: string;
+  compact?: boolean;
+}) {
   return (
-    <span className={`inline-flex items-center gap-2 text-fg ${className ?? ""}`}>
-      <LogoMark />
-      <span className={`text-sm font-semibold tracking-tight ${compact ? "hidden sm:inline" : ""}`}>
+    <span
+      className={`inline-flex items-center text-fg ${className ?? ""}`}
+      style={{ gap: size * LOCKUP.gapScale }}
+    >
+      <LogoMark size={size} className="shrink-0" />
+      <span
+        className={`font-semibold leading-none ${compact ? "hidden sm:inline" : ""}`}
+        style={{ fontSize: size * LOCKUP.wordScale, letterSpacing: LOCKUP.tracking }}
+      >
         Backpressure
       </span>
     </span>
