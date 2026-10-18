@@ -107,6 +107,44 @@ export function KindIcon({ kind, size, className }: { kind: NodeKind } & IconPro
   );
 }
 
+/* ---------------- Product glyphs ---------------- */
+
+const VERTICAL_GLYPH: Record<string, ReactNode> = {
+  // Tiers stacked into one system.
+  systems: (
+    <>
+      <path d="M12 3 21 7.5 12 12 3 7.5Z" />
+      <path d="m3 12 9 4.5 9-4.5" />
+      <path d="m3 16.5 9 4.5 9-4.5" />
+    </>
+  ),
+  // A small graph on a canvas: one node fanning out to two.
+  playground: (
+    <>
+      <rect x="2.5" y="9.5" width="6" height="5" rx="1.5" />
+      <rect x="15.5" y="3.5" width="6" height="5" rx="1.5" />
+      <rect x="15.5" y="15.5" width="6" height="5" rx="1.5" />
+      <path d="M8.5 12H12m0 0V8a2 2 0 0 1 2-2h1.5M12 12v4a2 2 0 0 0 2 2h1.5" />
+    </>
+  ),
+  quiz: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.5 9.6a2.5 2.5 0 0 1 4.9.7c0 1.6-2.4 2.1-2.4 3.7" />
+      <circle cx="12" cy="17" r="0.95" fill="currentColor" stroke="none" />
+    </>
+  ),
+};
+
+/** The mark for each product vertical (Systems, Playground, Quiz). */
+export function VerticalIcon({ slug, size, className }: { slug: string } & IconProps) {
+  return (
+    <Svg size={size} className={className}>
+      {VERTICAL_GLYPH[slug]}
+    </Svg>
+  );
+}
+
 /* ---------------- System glyphs ---------------- */
 
 const SYSTEM_GLYPH: Record<string, ReactNode> = {
