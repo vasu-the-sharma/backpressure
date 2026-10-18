@@ -140,7 +140,8 @@ export function QuizRunner({ quiz }: { quiz: Quiz }) {
         </ol>
       </div>
 
-      <div className="px-5 py-6 sm:px-6">
+      {/* Keyed by question: each new question arrives from the direction of progress. */}
+      <div key={question.id} className="enter-forward px-5 py-6 sm:px-6">
         {question.scenario && (
           <p className="mb-4 rounded-md border border-line bg-surface-2 px-4 py-3 text-sm leading-relaxed text-fg-2">
             {question.scenario}
@@ -233,7 +234,7 @@ function OptionButton({
       aria-checked={picked}
       onClick={onClick}
       disabled={submitted}
-      className={`focus-ring flex w-full items-center gap-3 rounded-md border px-3.5 py-3 text-left text-sm transition-colors duration-150 ease-out disabled:cursor-default ${state}`}
+      className={`focus-ring pressable pressable-subtle flex w-full items-center gap-3 rounded-md border px-3.5 py-3 text-left text-sm disabled:cursor-default ${state}`}
     >
       <span
         className={`kbd shrink-0 ${picked && !submitted ? "!border-fg !bg-fg !text-black" : ""}`}
@@ -285,7 +286,7 @@ function Results({
     pct >= 85 ? "Sharp instincts." : pct >= 60 ? "Solid — a few to sharpen." : "Worth a rerun.";
 
   return (
-    <section className="panel overflow-hidden" aria-label="Results">
+    <section className="enter-forward panel overflow-hidden" aria-label="Results">
       <div className="border-b border-line px-5 py-8 text-center sm:px-6">
         <p className="text-xs text-fg-3">Your score</p>
         <p className="display tnum mt-2 text-6xl text-fg">

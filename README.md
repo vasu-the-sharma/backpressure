@@ -113,8 +113,23 @@ outage). Color is never the only signal; every state also has a label or number.
   (`src/app/opengraph-image.tsx`). Wordmark: Inter SemiBold at 0.46× the mark,
   −2.5% tracking. Ready-made files (SVG with outlined text, PNG) are in
   `public/brand/`; `scripts/brand/generate.swift` regenerates them.
-- **Motion** is entrance-only (`.rise-in`, `<Reveal>`) and honors
-  `prefers-reduced-motion`.
+- **Motion and feel** follow Apple's fluid-interface rules
+  (`src/lib/motion`, tested): controls give way on press, not on release;
+  motion uses springs described by damping and response (critically damped by
+  default, bounce only after a flick), solved in closed form so they can be
+  caught and re-targeted mid-flight without losing velocity. CSS transitions
+  use the same spring, sampled into `linear()` (`--ease-spring`). On phones
+  the Playground brief is a bottom sheet that tracks the finger 1:1,
+  rubber-bands past its ends and projects flick momentum to choose where it
+  rests.
+- **Materials.** The header, popovers and the sheet are translucent layers
+  (`.material-chrome`, `.material-popover`, `.material-sheet`); bigger surfaces
+  are thicker. The header shows its edge only when content scrolls under it.
+- **Accessibility modes.** Reduced motion swaps movement for short
+  cross-fades and stops loops; reduced transparency makes materials solid;
+  increased contrast strengthens hairlines and secondary text.
+- **Type** tracking and leading are set per size in `@theme`: small text
+  opens up slightly, large text tightens.
 
 ## Project structure
 

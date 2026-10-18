@@ -42,6 +42,89 @@
   --color-warn-fg: #fbbf24;
   --color-bad: #ef4444;
   --color-bad-fg: #f87171;
+
+  /* Motion. CSS transitions use the same critically damped spring as the
+     JS sheet (src/lib/motion): damping 1.0, response 0.35s (and 0.25s for
+     small, fast things). Sampled into linear() so the curve is the spring's. */
+  --ease-spring: linear(
+    0,
+    0.0345,
+    0.1147,
+    0.2154,
+    0.3213,
+    0.4235,
+    0.5171,
+    0.6,
+    0.6717,
+    0.7327,
+    0.7837,
+    0.8259,
+    0.8606,
+    0.8888,
+    0.9116,
+    0.93,
+    0.9447,
+    0.9565,
+    0.9658,
+    0.9732,
+    0.979,
+    0.9836,
+    0.9872,
+    0.9901,
+    0.9923,
+    0.994,
+    0.9953,
+    0.9964,
+    0.9972,
+    0.9978,
+    0.9983,
+    0.9987,
+    1
+  );
+  --ease-spring-fast: linear(
+    0,
+    0.0577,
+    0.1807,
+    0.3215,
+    0.456,
+    0.5738,
+    0.672,
+    0.7509,
+    0.8129,
+    0.8607,
+    0.8971,
+    0.9244,
+    0.9448,
+    0.9599,
+    0.971,
+    0.9791,
+    0.985,
+    0.9892,
+    0.9923,
+    0.9945,
+    0.9961,
+    0.9972,
+    0.998,
+    0.9986,
+    1
+  );
+  --duration-spring: 515ms;
+  --duration-spring-fast: 370ms;
+
+  /* Type: tracking and leading are size-specific, never one value for all.
+     Small text opens up slightly for legibility; larger text tightens. */
+  --text-xs--line-height: 1.5;
+  --text-xs--letter-spacing: 0.01em;
+  --text-sm--line-height: 1.5;
+  --text-sm--letter-spacing: 0em;
+  --text-base--line-height: 1.5;
+  --text-base--letter-spacing: -0.006em;
+  --text-lg--line-height: 1.4;
+  --text-lg--letter-spacing: -0.011em;
+  --text-xl--line-height: 1.3;
+  --text-xl--letter-spacing: -0.014em;
+  --text-2xl--line-height: 1.2;
+  --text-2xl--letter-spacing: -0.018em;
 }
 
 :root {
@@ -123,7 +206,13 @@
     cursor: pointer;
     user-select: none;
     outline: none;
-    transition: background-color 150ms ease-out, border-color 150ms ease-out, color 150ms ease-out;
+    transition: background-color 150ms ease-out, border-color 150ms ease-out, color 150ms ease-out,
+      transform var(--duration-spring-fast) var(--ease-spring-fast);
+  }
+  /* Feedback on press, not on release: the button gives way the instant it's touched. */
+  .btn:active:not(:disabled) {
+    transform: scale(0.97);
+    transition-duration: 150ms, 150ms, 150ms, 60ms;
   }
   .btn:focus-visible {
     box-shadow: 0 0 0 2px var(--color-canvas), 0 0 0 4px var(--color-accent);
@@ -251,6 +340,80 @@
     color: var(--color-fg-3);
   }
 
+  /* ---- Pressable rows and cards: the same instant give, smaller ---- */
+  .pressable {
+    transition: background-color 150ms ease-out, border-color 150ms ease-out, transform
+      var(--duration-spring-fast) var(--ease-spring-fast);
+  }
+  .pressable:active:not(:disabled) {
+    transform: scale(var(--press-scale, 0.985));
+    transition-duration: 150ms, 150ms, 60ms;
+  }
+  /* Wide rows and cards give way less, so the press reads as a touch, not a shrink. */
+  .pressable-subtle {
+    --press-scale: 0.995;
+  }
+
+  /* ---- Materials: translucent layers that float over content ---- */
+  /* Chrome (header): content scrolls underneath; the edge appears only once it does. */
+  .material-chrome {
+    background: rgb(0 0 0 / 0.62);
+    -webkit-backdrop-filter: blur(20px) saturate(180%);
+    backdrop-filter: blur(20px) saturate(180%);
+    box-shadow: 0 1px 0 rgb(255 255 255 / 0);
+    transition: box-shadow 200ms ease-out, background-color 200ms ease-out;
+  }
+  .material-chrome[data-scrolled="true"] {
+    box-shadow: 0 1px 0 rgb(255 255 255 / 0.07);
+  }
+  /* Popovers: lighter, thicker material; a bright top edge where light catches it. */
+  .material-popover {
+    background: rgb(30 30 30 / 0.84);
+    -webkit-backdrop-filter: blur(28px) saturate(180%);
+    backdrop-filter: blur(28px) saturate(180%);
+    border: 1px solid rgb(255 255 255 / 0.08);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 18px 48px -12px rgb(0 0 0 / 0.85);
+  }
+  /* Sheets: the largest surface, so the heaviest blur and deepest shadow. */
+  .material-sheet {
+    background: rgb(20 20 20 / 0.94);
+    -webkit-backdrop-filter: blur(32px) saturate(180%);
+    backdrop-filter: blur(32px) saturate(180%);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.08), 0 -16px 48px -16px rgb(0 0 0 / 0.9);
+  }
+
+  /* A popover materializes from its trigger: scale, blur and opacity together.
+     Driven by data-open, so a quick reopen reverses from wherever it is. */
+  .popover {
+    transform-origin: var(--origin, top right);
+    transition:
+      opacity 200ms ease-out, transform var(--duration-spring-fast) var(--ease-spring-fast),
+      filter 200ms ease-out, visibility 0s linear 200ms;
+  }
+  .popover[data-open="false"] {
+    opacity: 0;
+    transform: scale(0.94) translateY(-4px);
+    filter: blur(6px);
+    visibility: hidden;
+    pointer-events: none;
+  }
+  .popover[data-open="true"] {
+    opacity: 1;
+    transform: none;
+    filter: none;
+    visibility: visible;
+    transition-delay: 0s;
+  }
+
+  /* A row that scrolls sideways on small screens without a visible scrollbar. */
+  .no-scrollbar {
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
   /* ---- Skeleton placeholder ---- */
   .skeleton {
     display: inline-block;
@@ -258,6 +421,18 @@
     background: var(--color-fill);
     animation: skeleton-pulse 1.4s ease-in-out infinite;
   }
+}
+
+/* Moving forward through a sequence (quiz questions): new content arrives from
+   the direction of progress, so the path in matches the path through. */
+@keyframes enter-forward {
+  from {
+    opacity: 0;
+    transform: translateX(28px);
+  }
+}
+.enter-forward {
+  animation: enter-forward var(--duration-spring) var(--ease-spring) both;
 }
 
 @keyframes skeleton-pulse {
@@ -285,13 +460,12 @@
   }
 }
 .rise-in {
-  animation: rise-in 700ms cubic-bezier(0.2, 0.7, 0.1, 1) both;
+  animation: rise-in 700ms var(--ease-spring) both;
 }
 .reveal {
   opacity: 0;
   transform: translateY(18px);
-  transition: opacity 700ms cubic-bezier(0.2, 0.7, 0.1, 1), transform 700ms
-    cubic-bezier(0.2, 0.7, 0.1, 1);
+  transition: opacity 700ms var(--ease-spring), transform 700ms var(--ease-spring);
 }
 .reveal[data-shown="true"] {
   opacity: 1;
@@ -336,20 +510,86 @@
   border-bottom: 0 !important;
 }
 
+/* Reduced motion: keep the feedback, drop the movement. Transforms and
+   springs become short cross-fades; looping motion stops. */
 @media (prefers-reduced-motion: reduce) {
   .rise-in,
+  .enter-forward {
+    animation: fade-in 200ms ease-out both;
+  }
   .reveal {
-    animation: none;
-    opacity: 1;
+    transform: none;
+    transition: opacity 200ms ease-out;
+  }
+  .btn:active:not(:disabled),
+  .pressable:active:not(:disabled) {
+    transform: none;
+  }
+  .popover,
+  .popover[data-open="false"],
+  .popover[data-open="true"] {
     transform: none;
     filter: none;
-    transition: none;
   }
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.001ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.001ms !important;
+  .skeleton,
+  [class*="animate-"] {
+    animation: none !important;
+  }
+  html {
+    scroll-behavior: auto;
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+/* Reduced transparency: materials turn solid. */
+/* biome-ignore lint/correctness/noUnknownMediaFeatureName: Media Queries Level 5; supported in Chromium and Safari */
+@media (prefers-reduced-transparency: reduce) {
+  .material-chrome,
+  .material-popover,
+  .material-sheet {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+  .material-chrome {
+    background: var(--color-canvas);
+  }
+  .material-popover {
+    background: var(--color-surface-2);
+  }
+  .material-sheet {
+    background: var(--color-surface);
+  }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .material-chrome {
+    background: var(--color-canvas);
+  }
+  .material-popover {
+    background: var(--color-surface-2);
+  }
+  .material-sheet {
+    background: var(--color-surface);
+  }
+}
+
+/* Increased contrast: stronger hairlines and secondary text, solid surfaces with defined edges. */
+@media (prefers-contrast: more) {
+  :root {
+    --color-line: #3d3d3d;
+    --color-line-strong: #5a5a5a;
+    --color-fg-2: #c8c8c8;
+    --color-fg-3: #a3a3a3;
+  }
+  .material-chrome,
+  .material-popover,
+  .material-sheet {
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+    background: var(--color-surface);
+    border: 1px solid var(--color-line-strong);
   }
 }

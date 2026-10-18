@@ -37,7 +37,7 @@ export default function PlaygroundIndex() {
               <li key={c.slug}>
                 <Link
                   href={`/playground/${c.slug}`}
-                  className="group focus-ring grid grid-cols-[auto_minmax(0,1fr)_auto] gap-x-4 gap-y-2 px-4 py-4 transition-colors duration-150 ease-out hover:bg-surface-2 active:bg-fill sm:px-5"
+                  className="group focus-ring grid grid-cols-[auto_minmax(0,1fr)_auto] gap-x-4 gap-y-2 px-4 py-4 pressable pressable-subtle hover:bg-surface-2 active:bg-fill sm:px-5"
                 >
                   <span className="tnum pt-0.5 text-xs text-fg-3">
                     {String(i + 1).padStart(2, "0")}

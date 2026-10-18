@@ -37,6 +37,8 @@ export default async function ChallengePage({ params }: PageProps) {
       </header>
 
       <PlaygroundCanvas challenge={challenge} />
+      {/* Phones: room so the page's end isn't hidden under the brief sheet's peek. */}
+      <div aria-hidden className="h-28 lg:hidden" />
     </article>
   );
 }

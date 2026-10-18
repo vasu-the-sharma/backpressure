@@ -1,4 +1,5 @@
 import { AuthProvider } from "@/components/AuthProvider";
+import { HeaderShell } from "@/components/HeaderShell";
 import { Logo } from "@/components/Logo";
 import { SiteNav } from "@/components/SiteNav";
 import { UserMenu } from "@/components/UserMenu";
@@ -52,7 +53,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
       </head>
       <body className="flex min-h-screen flex-col">
         <AuthProvider enabled={isAuthConfigured()}>
-          <header className="sticky top-0 z-30 border-b border-line bg-canvas/80 backdrop-blur-sm">
+          <HeaderShell>
             <div className="mx-auto flex h-14 max-w-6xl items-center gap-3 px-4 sm:gap-6 sm:px-6">
               <Link
                 href="/"
@@ -66,7 +67,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
                 <UserMenu />
               </div>
             </div>
-          </header>
+          </HeaderShell>
 
           <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6 sm:py-10">
             {children}

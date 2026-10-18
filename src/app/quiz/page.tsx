@@ -34,7 +34,7 @@ export default function QuizIndex() {
             <li key={q.slug}>
               <Link
                 href={`/quiz/${q.slug}`}
-                className="group focus-ring grid grid-cols-[minmax(0,1fr)_auto] gap-4 px-4 py-4 transition-colors duration-150 ease-out hover:bg-surface-2 active:bg-fill sm:px-5"
+                className="group focus-ring grid grid-cols-[minmax(0,1fr)_auto] gap-4 px-4 py-4 pressable pressable-subtle hover:bg-surface-2 active:bg-fill sm:px-5"
               >
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-baseline gap-x-2">
