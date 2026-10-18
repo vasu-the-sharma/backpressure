@@ -111,6 +111,13 @@ outage). Color is never the only signal; every state also has a label or number.
   touch target with the product's icon, lit from above. The white primary
   glows; secondaries catch a light that follows the pointer, or lands under a
   finger on press; the chevron grows into an arrow on hover.
+- **The landing comparison** (`CompareDemo`) runs one read path twice on the
+  real engine: steady traffic on the left; on the right, traffic that climbs
+  past the database's capacity until it queues, drops requests and recovers
+  (pinned by `src/content/demo.test.ts`). Requests are drawn as moving light
+  (`FlowCanvas`), and visitors can scale the struggling database to rescue it.
+  Pointer-lit surfaces (`data-light` + `PointerLight`) and the small CSS loops
+  in `LandingVisuals` hold still under reduced motion.
 - **Logo.** The "queue depth" mark: four queues rising toward capacity, the
   last spilling over in amber. Its geometry lives once in `src/lib/brand.ts`
   and drives the header logo, favicon, app icons and the link-preview image
@@ -153,16 +160,17 @@ src/
     challenges/   Playground scenarios (load profile + SLO)
     quizzes/      Quiz modules
     verticals.ts  The product areas; drives the nav and landing
-    demo.ts       The landing page's live demo graph and load sweep
+    demo.ts       The landing comparison: graph, steady and rising load
   lib/            Small pure helpers for the UI
   app/            Next.js App Router (SSG pages)
-    page.tsx      Landing, with the live demo
+    page.tsx      Landing, with the live comparison
     systems/      Catalog and /systems/[slug] (the simulator)
     playground/   Challenges and /playground/[slug] (the design canvas)
     quiz/         Quizzes and /quiz/[slug]
   components/
     Simulator.tsx         The live model on each system page
-    LiveDemo.tsx          The landing page's running demo
+    CompareDemo.tsx       The landing page's side-by-side live comparison
+    FlowCanvas.tsx        Requests drawn as moving light (canvas)
     PlaygroundCanvas.tsx  The design canvas (React Flow)
     QuizRunner.tsx        The quiz player
     ui.tsx                Layout primitives that encode the type scale

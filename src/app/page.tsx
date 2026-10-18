@@ -1,5 +1,13 @@
+import { CompareDemo } from "@/components/CompareDemo";
 import { CtaLink } from "@/components/CtaLink";
-import { LiveDemo } from "@/components/LiveDemo";
+import {
+  LatencyCurve,
+  Marquee,
+  QueueOverflow,
+  RiseWords,
+  SeedReplay,
+} from "@/components/LandingVisuals";
+import { PointerLight } from "@/components/PointerLight";
 import { Reveal } from "@/components/Reveal";
 import { PlaygroundVignette, QuizVignette, SystemsVignette } from "@/components/Vignettes";
 import { VerticalIcon } from "@/components/icons";
@@ -17,18 +25,13 @@ const VIGNETTES: Record<string, ReactNode> = {
   quiz: <QuizVignette />,
 };
 
-const PRINCIPLES = [
-  {
-    title: "Deterministic",
-    body: "Every run is seeded. The same graph, load, and seed replay exactly — so a failure you find is a failure you can show someone.",
-  },
-  {
-    title: "Bounded queues",
-    body: "Each tier serves a fixed amount per tick and holds a finite queue. Bursts build queues below capacity; past it, requests are dropped and counted.",
-  },
+const PRINCIPLES: Array<{ title: string; line: string; visual: ReactNode }> = [
+  { title: "Deterministic", line: "Every run is seeded.", visual: <SeedReplay /> },
+  { title: "Bounded queues", line: "Each tier holds a finite queue.", visual: <QueueOverflow /> },
   {
     title: "Directionally honest",
-    body: "Tail latency rises as utilization nears one, an outage cascades, scaling moves the bottleneck. The shape is right; the numbers are a model, not telemetry.",
+    line: "The shape is right; the numbers are a model.",
+    visual: <LatencyCurve />,
   },
 ];
 
@@ -50,23 +53,29 @@ export default function Landing() {
 
   return (
     <div className="-mt-8 sm:-mt-10">
+      <PointerLight />
+
       {/* ---------------- Hero ---------------- */}
-      <section className="flex flex-col items-center pt-16 pb-12 text-center sm:pt-24 sm:pb-16">
-        <h1 className="display rise-in text-5xl sm:text-7xl lg:text-[5.5rem]">
-          Watch systems
+      <section
+        data-light
+        className="relative isolate flex flex-col items-center pt-16 pb-12 text-center sm:pt-24 sm:pb-16"
+      >
+        <div aria-hidden className="hero-dots" />
+        <div aria-hidden className="hero-dots hero-spot" />
+        <h1 className="display text-5xl sm:text-7xl lg:text-[5.5rem]">
+          <RiseWords text="Watch systems" />
           <br />
-          push back.
+          <RiseWords text="push back." from={2} />
         </h1>
         <p
           className="rise-in mt-6 max-w-xl text-base leading-relaxed text-fg-2 sm:text-lg"
-          style={{ animationDelay: "80ms" }}
+          style={{ animationDelay: "380ms" }}
         >
-          A lab for system design. Drive real architectures under load, break them, scale them — and
-          see exactly where they fail.
+          A lab for system design.
         </p>
         <div
           className="rise-in mt-8 flex w-full max-w-xs flex-col gap-3 sm:w-auto sm:max-w-none sm:flex-row"
-          style={{ animationDelay: "160ms" }}
+          style={{ animationDelay: "460ms" }}
         >
           <CtaLink
             href="/systems"
@@ -81,25 +90,17 @@ export default function Landing() {
         </div>
       </section>
 
-      {/* ---------------- Live product ---------------- */}
-      <section className="rise-in" style={{ animationDelay: "260ms" }}>
-        <LiveDemo />
-        <p className="mx-auto mt-4 max-w-2xl text-center text-xs leading-relaxed text-fg-3">
-          This is the real engine, not a recording. Offered load sweeps past the database's capacity
-          every 16 seconds — watch its queue fill, p99 double, and requests drop, then recover.
-        </p>
-      </section>
+      {/* ---------------- Live comparison ---------------- */}
+      <div className="rise-in" style={{ animationDelay: "560ms" }}>
+        <CompareDemo />
+      </div>
 
       {/* ---------------- Modelled on ---------------- */}
       <Reveal as="section" className="mt-20 border-y border-line py-8">
         <h2 className="text-center text-xs text-fg-3">Modelled on systems you use every day</h2>
-        <ul className="mt-5 flex flex-wrap items-center justify-center gap-x-10 gap-y-3">
-          {modelled.map((name) => (
-            <li key={name} className="text-lg font-medium tracking-tight text-fg-2">
-              {name}
-            </li>
-          ))}
-        </ul>
+        <div className="mt-5">
+          <Marquee items={modelled} />
+        </div>
       </Reveal>
 
       {/* ---------------- Products ---------------- */}
@@ -108,10 +109,6 @@ export default function Landing() {
           <h2 id="ways-in" className="display text-4xl sm:text-5xl">
             Three ways in.
           </h2>
-          <p className="mt-4 max-w-xl text-base leading-relaxed text-fg-2">
-            Drive a system someone else designed, design one yourself and get graded, or test the
-            instincts both are built to train. One simulator underneath all three.
-          </p>
         </Reveal>
 
         <ul className="mt-10 grid gap-4 md:grid-cols-3">
@@ -133,9 +130,12 @@ export default function Landing() {
         <div className="mt-10 grid gap-px overflow-hidden rounded-lg border border-line bg-line md:grid-cols-3">
           {PRINCIPLES.map((p, i) => (
             <Reveal key={p.title} delay={i * 80} className="bg-canvas p-6">
-              <p className="tnum text-xs text-fg-3">0{i + 1}</p>
-              <h3 className="mt-6 text-base font-medium text-fg">{p.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-fg-2">{p.body}</p>
+              <div className="flex h-24 items-center justify-center">{p.visual}</div>
+              <div className="mt-6 flex items-baseline gap-3">
+                <span className="tnum text-xs text-fg-3">0{i + 1}</span>
+                <h3 className="text-base font-medium text-fg">{p.title}</h3>
+              </div>
+              <p className="mt-1.5 text-sm text-fg-2">{p.line}</p>
             </Reveal>
           ))}
         </div>
@@ -170,7 +170,8 @@ function ProductCard({ vertical: v, count }: { vertical: Vertical; count?: strin
   return (
     <Link
       href={v.href}
-      className="group focus-ring panel pressable pressable-subtle flex h-full flex-col overflow-hidden hover:border-line-strong"
+      data-light
+      className="card-light group focus-ring panel pressable pressable-subtle flex h-full flex-col overflow-hidden hover:border-line-strong"
     >
       {VIGNETTES[v.slug]}
       <div className="flex flex-1 flex-col p-5">
@@ -178,7 +179,7 @@ function ProductCard({ vertical: v, count }: { vertical: Vertical; count?: strin
           <h3 className="text-base font-medium text-fg">{v.name}</h3>
           <span className="text-xs text-fg-3">{v.status === "live" ? "Live" : "Beta"}</span>
         </div>
-        <p className="mt-2 flex-1 text-sm leading-relaxed text-fg-2">{v.description}</p>
+        <p className="mt-1.5 flex-1 text-sm text-fg-2">{v.tagline}</p>
         <div className="mt-5 flex items-center justify-between text-xs">
           <span className="tnum text-fg-3">{count}</span>
           <span className="inline-flex items-center gap-1 text-fg transition-transform duration-150 ease-out group-hover:translate-x-0.5">
