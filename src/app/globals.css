@@ -163,6 +163,17 @@
   inherits: false;
   initial-value: 0;
 }
+/* Registered so the hero's spotlight glides after the pointer. */
+@property --hx {
+  syntax: "<length-percentage>";
+  inherits: false;
+  initial-value: 50%;
+}
+@property --hy {
+  syntax: "<length-percentage>";
+  inherits: false;
+  initial-value: 34%;
+}
 
 @layer components {
   /* ---- Numbers are measurements: monospaced, tabular, slashed zero ---- */
@@ -415,6 +426,393 @@
     transform: translateX(3px);
   }
 
+  /* ---- Live comparison (CompareDemo) ---- */
+  .live-dot {
+    position: relative;
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: var(--color-fg-4);
+  }
+  .live-dot[data-live="true"] {
+    background: var(--color-ok);
+  }
+  .live-dot[data-live="true"]::after,
+  .status[data-tone="bad"] .status-dot::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: inherit;
+    animation: ping 1.4s cubic-bezier(0, 0, 0.2, 1) infinite;
+  }
+
+  .vs-badge {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    transform: translate(-50%, -50%);
+    border-radius: 999px;
+    border: 1px solid var(--color-line-strong);
+    background: var(--color-canvas);
+    font-size: 11px;
+    color: var(--color-fg-3);
+  }
+
+  /* Each half warms toward amber, then red, as its database strains. */
+  .heat {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    transition: opacity 800ms ease-out;
+  }
+  .heat-warn {
+    background: radial-gradient(
+      70% 60% at 85% 40%,
+      color-mix(in srgb, var(--color-warn) 11%, transparent),
+      transparent 75%
+    );
+  }
+  .heat-bad {
+    background: radial-gradient(
+      70% 60% at 85% 40%,
+      color-mix(in srgb, var(--color-bad) 17%, transparent),
+      transparent 75%
+    );
+  }
+
+  .status {
+    --tone: var(--color-ok);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--color-fg);
+    transition: color 300ms ease-out;
+  }
+  .status[data-tone="warn"] {
+    --tone: var(--color-warn);
+  }
+  .status[data-tone="bad"] {
+    --tone: var(--color-bad);
+    color: var(--color-bad-fg);
+  }
+  .status-dot {
+    position: relative;
+    width: 8px;
+    height: 8px;
+    border-radius: 999px;
+    background: var(--tone);
+    transition: background-color 300ms ease-out;
+  }
+  .status-label {
+    animation: settle-in var(--duration-spring) var(--ease-spring) backwards;
+  }
+
+  .trend {
+    transition: transform var(--duration-spring) var(--ease-spring);
+  }
+
+  /* Pipeline nodes: a utilization ring that fills and changes state color. */
+  .pipe-node {
+    --tone: var(--color-fg-3);
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 999px;
+    border: 1px solid var(--color-line-strong);
+    background: var(--color-surface-2);
+    color: var(--color-fg-2);
+    transition: color 300ms ease-out;
+  }
+  .pipe-node[data-tone="ok"] {
+    --tone: var(--color-ok);
+  }
+  .pipe-node[data-tone="warn"] {
+    --tone: var(--color-warn);
+  }
+  .pipe-node[data-tone="bad"] {
+    --tone: var(--color-bad);
+    color: var(--color-bad-fg);
+    animation: run-hot 1.4s ease-in-out infinite;
+  }
+  .pipe-node[data-breaking] {
+    animation: run-hot 1.4s ease-in-out infinite, tremble 0.4s linear infinite;
+  }
+  .pipe-ring {
+    position: absolute;
+    inset: -1px;
+    width: calc(100% + 2px);
+    height: calc(100% + 2px);
+    transform: rotate(-90deg);
+    pointer-events: none;
+  }
+  .pipe-ring circle {
+    fill: none;
+    stroke-width: 2.5;
+  }
+  .pipe-ring-track {
+    stroke: rgb(255 255 255 / 0.07);
+  }
+  .pipe-ring-fill {
+    stroke: var(--tone);
+    stroke-dasharray: 100 100;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 300ms linear, stroke 300ms ease-out;
+  }
+  /* The traffic source breathes out requests. */
+  .pipe-node[data-source]::before,
+  .pipe-node[data-source]::after {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    border: 1px solid rgb(255 255 255 / 0.22);
+    pointer-events: none;
+    animation: ripple 2.4s ease-out infinite;
+  }
+  .pipe-node[data-source]::after {
+    animation-delay: 1.2s;
+  }
+  .pipe-badge {
+    position: absolute;
+    top: -7px;
+    right: -11px;
+    padding: 2px 5px;
+    border-radius: 6px;
+    background: var(--color-ok);
+    color: #03140a;
+    font-size: 10px;
+    font-weight: 600;
+    line-height: 1;
+    animation: pop-in var(--duration-spring) var(--ease-spring) backwards;
+  }
+
+  /* Load chart: old data fades out to the left; "now" sits at the right edge. */
+  .chart-fade {
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 22%);
+    mask-image: linear-gradient(90deg, transparent, #000 22%);
+  }
+  .chart-now {
+    position: absolute;
+    right: -3px;
+    width: 6px;
+    height: 6px;
+    margin-top: -3px;
+    border-radius: 999px;
+    background: var(--color-fg);
+    box-shadow: 0 0 0 3px rgb(255 255 255 / 0.12);
+    transition: top 100ms linear, background-color 300ms ease-out;
+  }
+  .chart-now[data-over] {
+    background: var(--color-bad);
+    animation: now-pulse 1.2s ease-out infinite;
+  }
+  .chart-cap {
+    position: absolute;
+    left: 0;
+    transform: translateY(-130%);
+    font-size: 10px;
+    line-height: 1;
+    color: var(--color-warn-fg);
+    opacity: 0.75;
+  }
+
+  /* The invitation to fix it: pops in when the database strains, then breathes. */
+  .scale-cta {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 32px;
+    padding: 0 12px 0 10px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    color: #000;
+    background: linear-gradient(180deg, #fff, #e9e9e9);
+    outline: 2px solid transparent;
+    outline-offset: 2px;
+    -webkit-tap-highlight-color: transparent;
+    animation: pop-in var(--duration-spring) var(--ease-spring) backwards, invite 2s ease-out 0.6s
+      infinite;
+    transition: transform var(--duration-spring-fast) var(--ease-spring-fast);
+  }
+  .scale-cta:active {
+    transform: scale(0.95);
+    transition-duration: 60ms;
+  }
+  .scale-cta:focus-visible {
+    outline-color: var(--color-accent);
+  }
+  .scaled-note {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: var(--color-ok-fg);
+    animation: settle-in var(--duration-spring) var(--ease-spring) backwards;
+  }
+
+  /* ---- Landing: the hero's dot field, brighter where the pointer is ---- */
+  .hero-dots {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background-image: radial-gradient(rgb(255 255 255 / 0.6) 1px, transparent 1.4px);
+    background-size: 24px 24px;
+    background-position: center top;
+    opacity: 0.14;
+    -webkit-mask-image: radial-gradient(ellipse 60% 70% at 50% 40%, #000, transparent 75%);
+    mask-image: radial-gradient(ellipse 60% 70% at 50% 40%, #000, transparent 75%);
+  }
+  /* The spot trails the pointer slightly (--hx/--hy are registered, so they
+     glide); on touch screens it rests behind the headline. */
+  .hero-spot {
+    --hx: var(--mx, 50%);
+    --hy: var(--my, 34%);
+    opacity: 1;
+    background-image: radial-gradient(rgb(255 255 255 / 0.75) 1px, transparent 1.4px),
+      radial-gradient(circle at var(--hx) var(--hy), rgb(255 255 255 / 0.07), transparent 60%);
+    background-size: 24px 24px, 100% 100%;
+    background-position: center top, 0 0;
+    background-repeat: repeat, no-repeat;
+    -webkit-mask-image: radial-gradient(280px circle at var(--hx) var(--hy), #000, transparent 75%);
+    mask-image: radial-gradient(280px circle at var(--hx) var(--hy), #000, transparent 75%);
+    transition: --hx 700ms var(--ease-spring), --hy 700ms var(--ease-spring);
+  }
+  .word-rise {
+    display: inline-block;
+    animation: word-rise 900ms var(--ease-spring) backwards;
+  }
+
+  /* ---- Landing: an endless row of names ---- */
+  .marquee {
+    overflow: hidden;
+    -webkit-mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+    mask-image: linear-gradient(90deg, transparent, #000 12%, #000 88%, transparent);
+  }
+  .marquee-track {
+    display: flex;
+    width: max-content;
+    animation: marquee 48s linear infinite;
+  }
+  .marquee:hover .marquee-track {
+    animation-play-state: paused;
+  }
+  .marquee-copy {
+    display: flex;
+    flex-shrink: 0;
+    gap: 3.5rem;
+    padding-right: 3.5rem;
+  }
+  .marquee-copy li,
+  .marquee-static li {
+    font-size: 1.125rem;
+    font-weight: 500;
+    letter-spacing: -0.011em;
+    white-space: nowrap;
+    color: var(--color-fg-2);
+  }
+  /* The accessible list. Visible only when the marquee holds still. */
+  .marquee-static {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  /* ---- Landing: product cards catch a soft light under the pointer ---- */
+  .card-light {
+    position: relative;
+  }
+  .card-light::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    background: radial-gradient(
+      320px circle at var(--mx, 50%) var(--my, 0%),
+      rgb(255 255 255 / 0.07),
+      transparent 65%
+    );
+    opacity: 0;
+    transition: opacity 300ms ease-out;
+  }
+  @media (hover: hover) {
+    .card-light:hover::after {
+      opacity: 1;
+    }
+  }
+
+  /* Card vignettes idle with a little of their product's motion. */
+  .meter-idle,
+  .meter-strain {
+    transform-origin: left;
+    animation: meter-idle 3.6s ease-in-out infinite;
+  }
+  .meter-strain {
+    animation-name: meter-strain;
+    animation-duration: 2.4s;
+  }
+  .strain-row {
+    animation: strain-row 2.4s ease-in-out infinite;
+  }
+  .flow-wire {
+    width: 24px;
+    height: 3px;
+    background-image: radial-gradient(circle, var(--color-fg-2) 0.9px, transparent 1.2px),
+      linear-gradient(var(--color-line-strong), var(--color-line-strong));
+    background-size: 6px 3px, 100% 1px;
+    background-position: 0 0, 0 50%;
+    background-repeat: repeat-x, no-repeat;
+    animation: flow-wire 0.6s linear infinite;
+  }
+  .quiz-pick {
+    animation: quiz-pick 4.8s ease-in-out infinite;
+  }
+  .quiz-check {
+    animation: quiz-check 4.8s var(--ease-spring) infinite;
+  }
+
+  /* Principle visuals (LandingVisuals) */
+  .visual-label {
+    font-family: var(--font-mono);
+    font-size: 7.5px;
+    fill: var(--color-fg-3);
+  }
+  .replay-trace {
+    stroke-dasharray: 1 1;
+    animation: replay 4.2s ease-in-out infinite;
+  }
+  .queue-slot {
+    animation: queue-slot 6s ease-in-out infinite backwards;
+  }
+  .queue-overflow {
+    fill: var(--color-fg);
+    opacity: 0;
+    animation: queue-overflow 6s ease-in-out infinite;
+  }
+  .queue-server {
+    stroke-dasharray: 0.3 0.7;
+    animation: server-spin 1.4s linear infinite;
+  }
+  .curve-dot-still {
+    display: none;
+  }
+
   /* ---- Range slider ---- */
   .range {
     -webkit-appearance: none;
@@ -560,6 +958,207 @@
   animation: enter-forward var(--duration-spring) var(--ease-spring) both;
 }
 
+/* ---- Live comparison motion ---- */
+@keyframes ping {
+  75%,
+  100% {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+@keyframes ripple {
+  from {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  to {
+    transform: scale(1.75);
+    opacity: 0;
+  }
+}
+@keyframes run-hot {
+  0%,
+  100% {
+    box-shadow: 0 0 16px -2px color-mix(in srgb, var(--color-bad) 40%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--color-bad) 16%, transparent), 0 0 30px 2px
+      color-mix(in srgb, var(--color-bad) 55%, transparent);
+  }
+}
+@keyframes tremble {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  25% {
+    transform: translate(0.8px, -0.5px);
+  }
+  50% {
+    transform: translate(-0.7px, 0.5px);
+  }
+  75% {
+    transform: translate(0.5px, 0.7px);
+  }
+}
+@keyframes now-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-bad) 60%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 9px color-mix(in srgb, var(--color-bad) 0%, transparent);
+  }
+}
+@keyframes invite {
+  0% {
+    box-shadow: 0 0 0 0 rgb(255 255 255 / 0.4);
+  }
+  70%,
+  100% {
+    box-shadow: 0 0 0 10px rgb(255 255 255 / 0);
+  }
+}
+@keyframes pop-in {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+}
+@keyframes settle-in {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+    filter: blur(2px);
+  }
+}
+
+/* ---- Landing motion ---- */
+@keyframes word-rise {
+  from {
+    opacity: 0;
+    transform: translateY(0.45em);
+    filter: blur(12px);
+  }
+}
+@keyframes marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+@keyframes meter-idle {
+  50% {
+    transform: scaleX(0.86);
+  }
+}
+@keyframes meter-strain {
+  50% {
+    transform: scaleX(1.1);
+  }
+}
+@keyframes strain-row {
+  50% {
+    background-color: color-mix(in srgb, var(--color-warn) 14%, transparent);
+  }
+}
+@keyframes flow-wire {
+  to {
+    background-position: 6px 0, 0 50%;
+  }
+}
+@keyframes quiz-pick {
+  0%,
+  30%,
+  94%,
+  100% {
+    border-color: var(--color-line-strong);
+    background-color: var(--color-surface);
+  }
+  38%,
+  86% {
+    border-color: color-mix(in srgb, var(--color-ok) 40%, transparent);
+    background-color: color-mix(in srgb, var(--color-ok) 10%, var(--color-surface));
+  }
+}
+@keyframes quiz-check {
+  0%,
+  34%,
+  94%,
+  100% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  42%,
+  86% {
+    opacity: 1;
+    transform: none;
+  }
+}
+@keyframes replay {
+  0% {
+    stroke-dashoffset: 1;
+    opacity: 1;
+  }
+  55%,
+  85% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+}
+@keyframes queue-slot {
+  0% {
+    opacity: 0;
+    transform: translateY(-9px);
+  }
+  6%,
+  70% {
+    opacity: 1;
+    transform: none;
+  }
+  77%,
+  100% {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+}
+@keyframes queue-overflow {
+  0%,
+  42% {
+    opacity: 0;
+    transform: translateX(-14px);
+    fill: var(--color-fg);
+  }
+  45% {
+    opacity: 1;
+    transform: translateX(-10px);
+    fill: var(--color-fg);
+  }
+  52% {
+    opacity: 1;
+    transform: translateX(4px);
+    fill: var(--color-fg);
+  }
+  56% {
+    opacity: 1;
+    transform: translate(0, -7px);
+    fill: var(--color-bad);
+  }
+  70%,
+  100% {
+    opacity: 0;
+    transform: translate(-6px, 26px);
+    fill: var(--color-bad);
+  }
+}
+@keyframes server-spin {
+  to {
+    stroke-dashoffset: -1;
+  }
+}
+
 @keyframes skeleton-pulse {
   50% {
     opacity: 0.5;
@@ -668,6 +1267,75 @@
   .skeleton,
   [class*="animate-"] {
     animation: none !important;
+  }
+  /* The comparison keeps its colors and numbers but stops pulsing, rippling and shaking. */
+  .live-dot::after,
+  .status-dot::after,
+  .status-label,
+  .pipe-node,
+  .pipe-node::before,
+  .pipe-node::after,
+  .pipe-badge,
+  .chart-now,
+  .scale-cta,
+  .scaled-note {
+    animation: none;
+  }
+  .trend {
+    transition: none;
+  }
+  /* Landing: every loop holds still on a frame that still tells its story. */
+  .word-rise {
+    animation: fade-in 200ms ease-out both;
+  }
+  .hero-spot {
+    transition: none;
+  }
+  .marquee {
+    display: none;
+  }
+  .marquee-static {
+    position: static;
+    width: auto;
+    height: auto;
+    overflow: visible;
+    clip-path: none;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 0.75rem 2.5rem;
+  }
+  .meter-idle,
+  .meter-strain,
+  .strain-row,
+  .flow-wire,
+  .queue-slot,
+  .queue-server {
+    animation: none;
+  }
+  .quiz-pick {
+    animation: none;
+    border-color: color-mix(in srgb, var(--color-ok) 40%, transparent);
+    background-color: color-mix(in srgb, var(--color-ok) 10%, var(--color-surface));
+  }
+  .quiz-check {
+    animation: none;
+  }
+  .replay-trace {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+  .queue-overflow {
+    animation: none;
+    opacity: 1;
+    fill: var(--color-bad);
+    transform: translate(2px, 16px);
+  }
+  .curve-dot {
+    display: none;
+  }
+  .curve-dot-still {
+    display: inline;
   }
   html {
     scroll-behavior: auto;

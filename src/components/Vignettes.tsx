@@ -3,9 +3,10 @@ import { CheckGlyph } from "@/components/ui";
 import type { NodeKind } from "@/sim/types";
 
 /**
- * Small static renders of each product's real UI, used on the landing cards
- * in place of icons. They are built from the same tokens and shapes as the
- * live components, so the preview is what you get.
+ * Small renders of each product's real UI, used on the landing cards in
+ * place of icons. They are built from the same tokens and shapes as the live
+ * components, so the preview is what you get, and each one idles with a
+ * little of its product's motion (still under reduced motion).
  */
 
 function Frame({ children }: { children: React.ReactNode }) {
@@ -34,10 +35,10 @@ export function SystemsVignette() {
   return (
     <Frame>
       <ul className="w-full max-w-72 divide-y divide-line rounded-md border border-line-strong bg-surface">
-        {rows.map((r) => (
+        {rows.map((r, i) => (
           <li
             key={r.label}
-            className={`flex items-center gap-2.5 px-3 py-2 ${r.tag ? "bg-warn/[0.07]" : ""}`}
+            className={`flex items-center gap-2.5 px-3 py-2 ${r.tag ? "strain-row bg-warn/[0.07]" : ""}`}
           >
             <span className="text-fg-3">
               <KindIcon kind={r.kind} size={13} />
@@ -45,8 +46,8 @@ export function SystemsVignette() {
             <span className="w-20 truncate text-xs text-fg">{r.label}</span>
             <span className="h-1 flex-1 overflow-hidden rounded-full bg-fill-2">
               <span
-                className="block h-full rounded-full"
-                style={{ width: `${r.pct}%`, background: r.tone }}
+                className={`block h-full rounded-full ${r.tag ? "meter-strain" : "meter-idle"}`}
+                style={{ width: `${r.pct}%`, background: r.tone, animationDelay: `${i * -0.9}s` }}
               />
             </span>
             <span className="tnum w-8 text-right text-[11px] text-fg-2">{r.pct}%</span>
@@ -76,7 +77,7 @@ export function PlaygroundVignette() {
         <div className="flex items-center">
           {chain.map((c, i) => (
             <div key={c.label} className="flex items-center">
-              {i > 0 && <span className="h-px w-6 bg-fg-3" />}
+              {i > 0 && <span className="flow-wire" />}
               <span className="flex items-center gap-1.5 rounded-md border border-line-strong bg-surface px-2.5 py-1.5 text-xs text-fg">
                 <span className="text-fg-3">
                   <KindIcon kind={c.kind} size={12} />
@@ -109,17 +110,15 @@ export function QuizVignette() {
           {options.map((o, i) => (
             <li
               key={o.text}
-              className={`flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs ${
-                o.state === "correct"
-                  ? "border-ok/40 bg-ok/10 text-fg"
-                  : "border-line-strong bg-surface text-fg-2"
+              className={`flex items-center gap-2 rounded-md border border-line-strong bg-surface px-2.5 py-1.5 text-xs ${
+                o.state === "correct" ? "quiz-pick text-fg" : "text-fg-2"
               }`}
             >
               <span className="kbd !h-4 !min-w-4 !px-1 !text-[10px]">
                 {String.fromCharCode(65 + i)}
               </span>
               <span className="flex-1">{o.text}</span>
-              {o.state === "correct" && <CheckGlyph size={11} className="text-ok-fg" />}
+              {o.state === "correct" && <CheckGlyph size={11} className="quiz-check text-ok-fg" />}
             </li>
           ))}
         </ul>
