@@ -116,6 +116,9 @@ outage). Color is never the only signal; every state also has a label or number.
   past the database's capacity until it queues, drops requests and recovers
   (pinned by `src/content/demo.test.ts`). Requests are drawn as moving light
   (`FlowCanvas`), and visitors can scale the struggling database to rescue it.
+  Each half explains itself: a plain-language sentence with live numbers, a
+  five-stage track (healthy → recovering), callouts on the queue, and a shared
+  legend for the marks.
   Pointer-lit surfaces (`data-light` + `PointerLight`) and the small CSS loops
   in `LandingVisuals` hold still under reduced motion.
 - **Logo.** The "queue depth" mark: four queues rising toward capacity, the
