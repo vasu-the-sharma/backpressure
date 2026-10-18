@@ -42,7 +42,7 @@ export default function SystemsIndex() {
                 <li key={system.slug}>
                   <Link
                     href={`/systems/${system.slug}`}
-                    className="group focus-ring grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4 px-4 py-4 transition-colors duration-150 ease-out hover:bg-surface-2 active:bg-fill sm:px-5 md:grid-cols-[auto_minmax(0,14rem)_minmax(0,1fr)_auto]"
+                    className="group focus-ring grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-4 px-4 py-4 pressable pressable-subtle hover:bg-surface-2 active:bg-fill sm:px-5 md:grid-cols-[auto_minmax(0,14rem)_minmax(0,1fr)_auto]"
                   >
                     <span className="flex h-9 w-9 items-center justify-center rounded-md border border-line-strong bg-surface-2 text-fg-2 transition-colors duration-150 ease-out group-hover:text-fg">
                       <SystemIcon name={system.icon} size={18} />

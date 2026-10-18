@@ -158,7 +158,7 @@ function ProductCard({ vertical: v, count }: { vertical: Vertical; count?: strin
   return (
     <Link
       href={v.href}
-      className="group focus-ring panel flex h-full flex-col overflow-hidden transition-colors duration-150 ease-out hover:border-line-strong"
+      className="group focus-ring panel pressable pressable-subtle flex h-full flex-col overflow-hidden hover:border-line-strong"
     >
       {VIGNETTES[v.slug]}
       <div className="flex flex-1 flex-col p-5">

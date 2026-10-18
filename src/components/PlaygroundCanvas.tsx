@@ -20,6 +20,7 @@ import {
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
 import { type SaveState, SaveStatus, useSaveProgress } from "@/components/SaveStatus";
+import { Sheet, type SheetSnap } from "@/components/Sheet";
 import { KindIcon } from "@/components/icons";
 import { CheckGlyph, CrossGlyph } from "@/components/ui";
 import {
@@ -397,6 +398,7 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
   );
 
   const { state: saveState, save } = useSaveProgress();
+  const [sheetSnap, setSheetSnap] = useState<SheetSnap>("peek");
 
   const run = useCallback(() => {
     const design: DesignSpec = {
@@ -410,6 +412,7 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
     if (problems.length > 0) {
       setErrors(problems);
       setResult(null);
+      setSheetSnap((s) => (s === "peek" ? "half" : s));
       return;
     }
     setErrors([]);
@@ -429,6 +432,8 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
       }),
     );
     setResult(res);
+    // On phones, lift the sheet so the verdict is visible without a gesture.
+    setSheetSnap((s) => (s === "peek" ? "half" : s));
     if (res.pass) markSolved(challenge.slug);
     // The server re-scores the same design before recording it.
     void save(() => saveChallengeRun({ slug: challenge.slug, design }));
@@ -451,9 +456,128 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
   for (const e of edges) outDegree.set(e.source, (outDegree.get(e.source) ?? 0) + 1);
   const rules = scenarioRules(challenge);
 
+  const runButtons = (
+    <div className="flex gap-2">
+      <button
+        type="button"
+        onClick={run}
+        className="btn btn-primary flex-1"
+        title="Run design (⌘/Ctrl + Enter)"
+      >
+        Run design
+        <span aria-hidden className="ml-1 hidden text-[11px] font-normal text-black/50 lg:inline">
+          ⌘↵
+        </span>
+      </button>
+      <button
+        type="button"
+        onClick={resetCanvas}
+        disabled={isEmpty && !result}
+        className="btn btn-secondary"
+      >
+        Reset
+      </button>
+    </div>
+  );
+
+  const outcome = (
+    <>
+      {errors.length > 0 && (
+        <div
+          role="alert"
+          className="mt-3 rounded-md border border-warn/40 bg-warn/[0.07] px-3 py-2.5 text-xs"
+        >
+          <p className="font-medium text-warn-fg">Fix before running</p>
+          <ul className="mt-1 list-inside list-disc space-y-0.5 text-fg-2">
+            {errors.map((e) => (
+              <li key={e}>{e}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {result ? (
+        <Results
+          result={result}
+          solution={challenge.solution}
+          onLoadReference={() => loadDesign(challenge.calibration.reference)}
+          saveState={saveState}
+        />
+      ) : (
+        errors.length === 0 && (
+          <p className="mt-3 text-xs leading-relaxed text-fg-3">
+            Run the design to score it against the targets. Each node then shows its utilization,
+            and the bottleneck is marked.
+          </p>
+        )
+      )}
+
+      {challenge.hint && (
+        <details className="group mt-4 border-t border-line pt-3">
+          <summary className="focus-ring cursor-pointer list-none rounded-sm text-xs text-fg-2 transition-colors duration-150 ease-out hover:text-fg [&::-webkit-details-marker]:hidden">
+            <span className="group-open:hidden">Show hint</span>
+            <span className="hidden group-open:inline">Hide hint</span>
+          </summary>
+          <p className="mt-2 text-xs leading-relaxed text-fg-3">{challenge.hint}</p>
+        </details>
+      )}
+    </>
+  );
+
+  const brief = (
+    <>
+      <section className="border-b border-line p-4">
+        <h2 className="text-xs text-fg-3">Objective</h2>
+        <p className="mt-1.5 text-sm leading-relaxed text-fg-2">{challenge.prompt}</p>
+        <ul className="mt-3 space-y-1.5">
+          {challenge.requirements.map((r) => (
+            <li key={r} className="flex gap-2 text-xs leading-relaxed text-fg-2">
+              <span aria-hidden className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-fg-3" />
+              {r}
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      {rules.length > 0 && (
+        <section className="border-b border-line p-4">
+          <h2 className="text-xs text-fg-3">Scenario rules</h2>
+          <ul className="mt-2 space-y-1.5">
+            {rules.map((r) => (
+              <li key={r} className="flex gap-2 text-xs leading-relaxed text-fg-2">
+                <span aria-hidden className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-warn" />
+                {r}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <section className="border-b border-line p-4">
+        <h2 className="text-xs text-fg-3">Targets</h2>
+        <dl className="mt-2 space-y-1.5 text-xs">
+          <div className="flex justify-between gap-2">
+            <dt className="text-fg-2">P99 latency</dt>
+            <dd className="tnum text-fg">≤ {challenge.slo.p99Ms} ms</dd>
+          </div>
+          <div className="flex justify-between gap-2">
+            <dt className="text-fg-2">Error rate</dt>
+            <dd className="tnum text-fg">≤ {(challenge.slo.maxErrorRate * 100).toFixed(0)}%</dd>
+          </div>
+          <div className="flex justify-between gap-2">
+            <dt className="text-fg-2">Throughput</dt>
+            <dd className="tnum text-fg">
+              ≥ {challenge.slo.minThroughputRps.toLocaleString()} rps
+            </dd>
+          </div>
+        </dl>
+      </section>
+    </>
+  );
+
   return (
     <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_340px]">
-      <div className="panel relative h-[620px] overflow-hidden">
+      <div className="panel relative h-[calc(100dvh-15rem)] min-h-[420px] overflow-hidden lg:h-[620px]">
         <ActionsContext.Provider value={{ challenge, outDegree, changeReplicas, removeNode }}>
           <ReactFlow
             nodes={nodes}
@@ -475,14 +599,14 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
             <Background variant={BackgroundVariant.Dots} gap={20} size={1} color="#2a2a2a" />
             <Controls showInteractive={false} />
             <Panel position="top-left" className="!m-3">
-              <div className="flex flex-wrap items-center gap-1 rounded-md border border-line-strong bg-surface-2/95 p-1 backdrop-blur-sm">
-                <span className="px-2 text-xs text-fg-3">Add</span>
+              <div className="material-popover no-scrollbar flex max-w-[calc(100vw-4.5rem)] items-center gap-1 overflow-x-auto rounded-md p-1 lg:max-w-none lg:flex-wrap">
+                <span className="shrink-0 px-2 text-xs text-fg-3">Add</span>
                 {challenge.palette.map((kind) => (
                   <button
                     key={kind}
                     type="button"
                     onClick={() => addNode(kind)}
-                    className="btn btn-ghost btn-sm"
+                    className="btn btn-ghost btn-sm shrink-0"
                     title={NODE_DEFAULTS[kind].blurb}
                   >
                     <KindIcon kind={kind} size={13} />
@@ -513,121 +637,38 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
         )}
       </div>
 
+      {/* Desktop: a side panel next to the canvas. */}
       <aside
-        className="panel flex flex-col self-start overflow-hidden"
+        className="panel hidden flex-col self-start overflow-hidden lg:flex"
         aria-label="Challenge brief"
       >
-        <section className="border-b border-line p-4">
-          <h2 className="text-xs text-fg-3">Objective</h2>
-          <p className="mt-1.5 text-sm leading-relaxed text-fg-2">{challenge.prompt}</p>
-          <ul className="mt-3 space-y-1.5">
-            {challenge.requirements.map((r) => (
-              <li key={r} className="flex gap-2 text-xs leading-relaxed text-fg-2">
-                <span aria-hidden className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-fg-3" />
-                {r}
-              </li>
-            ))}
-          </ul>
-        </section>
-
-        {rules.length > 0 && (
-          <section className="border-b border-line p-4">
-            <h2 className="text-xs text-fg-3">Scenario rules</h2>
-            <ul className="mt-2 space-y-1.5">
-              {rules.map((r) => (
-                <li key={r} className="flex gap-2 text-xs leading-relaxed text-fg-2">
-                  <span aria-hidden className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-warn" />
-                  {r}
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
-
-        <section className="border-b border-line p-4">
-          <h2 className="text-xs text-fg-3">Targets</h2>
-          <dl className="mt-2 space-y-1.5 text-xs">
-            <div className="flex justify-between gap-2">
-              <dt className="text-fg-2">P99 latency</dt>
-              <dd className="tnum text-fg">≤ {challenge.slo.p99Ms} ms</dd>
-            </div>
-            <div className="flex justify-between gap-2">
-              <dt className="text-fg-2">Error rate</dt>
-              <dd className="tnum text-fg">≤ {(challenge.slo.maxErrorRate * 100).toFixed(0)}%</dd>
-            </div>
-            <div className="flex justify-between gap-2">
-              <dt className="text-fg-2">Throughput</dt>
-              <dd className="tnum text-fg">
-                ≥ {challenge.slo.minThroughputRps.toLocaleString()} rps
-              </dd>
-            </div>
-          </dl>
-        </section>
-
+        {brief}
         <section className="p-4">
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={run}
-              className="btn btn-primary flex-1"
-              title="Run design (⌘/Ctrl + Enter)"
-            >
-              Run design
-              <span aria-hidden className="ml-1 text-[11px] font-normal text-black/50">
-                ⌘↵
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={resetCanvas}
-              disabled={isEmpty && !result}
-              className="btn btn-secondary"
-            >
-              Reset
-            </button>
-          </div>
-
-          {errors.length > 0 && (
-            <div
-              role="alert"
-              className="mt-3 rounded-md border border-warn/40 bg-warn/[0.07] px-3 py-2.5 text-xs"
-            >
-              <p className="font-medium text-warn-fg">Fix before running</p>
-              <ul className="mt-1 list-inside list-disc space-y-0.5 text-fg-2">
-                {errors.map((e) => (
-                  <li key={e}>{e}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          {result ? (
-            <Results
-              result={result}
-              solution={challenge.solution}
-              onLoadReference={() => loadDesign(challenge.calibration.reference)}
-              saveState={saveState}
-            />
-          ) : (
-            errors.length === 0 && (
-              <p className="mt-3 text-xs leading-relaxed text-fg-3">
-                Run the design to score it against the targets. Each node then shows its
-                utilization, and the bottleneck is marked.
-              </p>
-            )
-          )}
-
-          {challenge.hint && (
-            <details className="group mt-4 border-t border-line pt-3">
-              <summary className="focus-ring cursor-pointer list-none rounded-sm text-xs text-fg-2 transition-colors duration-150 ease-out hover:text-fg [&::-webkit-details-marker]:hidden">
-                <span className="group-open:hidden">Show hint</span>
-                <span className="hidden group-open:inline">Hide hint</span>
-              </summary>
-              <p className="mt-2 text-xs leading-relaxed text-fg-3">{challenge.hint}</p>
-            </details>
-          )}
+          {runButtons}
+          {outcome}
         </section>
       </aside>
+
+      {/* Phones: the same brief in a draggable sheet; Run stays reachable at all times. */}
+      <Sheet
+        className="lg:hidden"
+        label="Challenge brief"
+        snap={sheetSnap}
+        onSnapChange={setSheetSnap}
+        header={
+          <div className="mt-1 flex flex-col gap-2">
+            {runButtons}
+            {result && (
+              <p className={`text-xs ${result.pass ? "text-ok-fg" : "text-bad-fg"}`}>
+                {result.pass ? "SLO met" : "SLO missed"} · swipe up for details
+              </p>
+            )}
+          </div>
+        }
+      >
+        {outcome && <div className="border-b border-line p-4">{outcome}</div>}
+        {brief}
+      </Sheet>
     </div>
   );
 }
