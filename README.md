@@ -107,6 +107,10 @@ outage). Color is never the only signal; every state also has a label or number.
 - **Primitives**: `.panel`, `.btn` (+ `-primary` / `-secondary` / `-ghost`, sizes),
   `.range`, `.kbd`, `.skeleton`, `.focus-ring`; layout pieces in
   `src/components/ui.tsx`. Radii are 6px (controls) and 8px (panels).
+- **Calls to action** on the landing page use `CtaLink` (`.cta`): a 44px
+  touch target with the product's icon, lit from above. The white primary
+  glows; secondaries catch a light that follows the pointer, or lands under a
+  finger on press; the chevron grows into an arrow on hover.
 - **Logo.** The "queue depth" mark: four queues rising toward capacity, the
   last spilling over in amber. Its geometry lives once in `src/lib/brand.ts`
   and drives the header logo, favicon, app icons and the link-preview image

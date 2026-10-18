@@ -1,6 +1,8 @@
+import { CtaLink } from "@/components/CtaLink";
 import { LiveDemo } from "@/components/LiveDemo";
 import { Reveal } from "@/components/Reveal";
 import { PlaygroundVignette, QuizVignette, SystemsVignette } from "@/components/Vignettes";
+import { VerticalIcon } from "@/components/icons";
 import { ChevronRight } from "@/components/ui";
 import { getAllChallenges } from "@/content/challenges/registry";
 import { getAllQuizzes } from "@/content/quizzes/registry";
@@ -63,15 +65,19 @@ export default function Landing() {
           see exactly where they fail.
         </p>
         <div
-          className="rise-in mt-8 flex flex-wrap justify-center gap-3"
+          className="rise-in mt-8 flex w-full max-w-xs flex-col gap-3 sm:w-auto sm:max-w-none sm:flex-row"
           style={{ animationDelay: "160ms" }}
         >
-          <Link href="/systems" className="btn btn-primary btn-lg">
+          <CtaLink
+            href="/systems"
+            variant="primary"
+            icon={<VerticalIcon slug="systems" size={16} />}
+          >
             Explore systems
-          </Link>
-          <Link href="/playground" className="btn btn-secondary btn-lg">
+          </CtaLink>
+          <CtaLink href="/playground" icon={<VerticalIcon slug="playground" size={16} />}>
             Design your own
-          </Link>
+          </CtaLink>
         </div>
       </section>
 
@@ -140,14 +146,20 @@ export default function Landing() {
         <h2 className="display max-w-3xl text-4xl sm:text-6xl">
           Find the bottleneck before your users do.
         </h2>
-        <div className="mt-8 flex flex-wrap justify-center gap-3">
-          <Link href="/systems" className="btn btn-primary btn-lg">
+        <div className="mt-8 flex w-full max-w-xs flex-col gap-3 md:w-auto md:max-w-none md:flex-row">
+          <CtaLink
+            href="/systems"
+            variant="primary"
+            icon={<VerticalIcon slug="systems" size={16} />}
+          >
             Start with a system
-          </Link>
-          <Link href="/quiz" className="btn btn-ghost btn-lg">
+          </CtaLink>
+          <CtaLink href="/playground" icon={<VerticalIcon slug="playground" size={16} />}>
+            Open the playground
+          </CtaLink>
+          <CtaLink href="/quiz" icon={<VerticalIcon slug="quiz" size={16} />}>
             Take the quiz
-            <ChevronRight size={14} />
-          </Link>
+          </CtaLink>
         </div>
       </Reveal>
     </div>
