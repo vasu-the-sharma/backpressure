@@ -84,8 +84,11 @@ function classify(s: SimState, offeredRps: number, capacityRps: number): Status 
   const db = dbOf(s);
   const queue = db?.queueDepth ?? 0;
   const util = db?.utilization ?? 0;
-  if (s.errorRate >= 0.005) return "breaking";
-  if (queue > DB_QUEUE_MAX * 0.02) return offeredRps >= capacityRps ? "about" : "recovering";
+  const over = offeredRps >= capacityRps;
+  // Drops still in the 1 s window after load falls under capacity (or after a
+  // scale-up) are the tail of the incident, not a new one: that's recovering.
+  if (s.errorRate >= 0.005) return over ? "breaking" : "recovering";
+  if (queue > DB_QUEUE_MAX * 0.02) return over ? "about" : "recovering";
   if (util >= 0.98 && offeredRps >= capacityRps * 0.97) return "about";
   if (util >= 0.75) return "pressure";
   return "healthy";
@@ -152,11 +155,17 @@ function advance(side: Side, t: number) {
   side.scaled = side.scaled.filter((s) => s.to === null || s.to > t - CHART_SPAN_S);
 }
 
+const STAGES: Status[] = ["healthy", "pressure", "about", "breaking", "recovering"];
+const fmtInt = (n: number) => Math.round(n).toLocaleString("en-US");
+const fmtK = (n: number) => `${(n / 1000).toFixed(1)}k`;
+const fmtRate = (n: number) => (n < 1000 ? `${Math.round(n / 10) * 10}/s` : `${fmtK(n)}/s`);
+
 /**
  * The landing page's centerpiece: one system, twice, on the real engine. The
  * left half gets steady traffic and stays healthy; the right half's traffic
  * climbs until the database saturates, queues, and drops requests, then
- * recovers. Visitors can scale the struggling database and watch it heal.
+ * recovers. Each half says in plain words what is happening and why, and
+ * visitors can add a database to rescue the struggling one.
  */
 export function CompareDemo() {
   const simRef = useRef<{ t: number; steady: Side; rising: Side } | null>(null);
@@ -168,7 +177,7 @@ export function CompareDemo() {
     };
   }
   const sim = simRef.current;
-  const rootRef = useRef<HTMLElement | null>(null);
+  const rootRef = useRef<HTMLDivElement | null>(null);
   const [, setFrame] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [visible, setVisible] = useState(true);
@@ -211,19 +220,19 @@ export function CompareDemo() {
     side.engine.setReplicas("db", 2);
     side.scaled.push({ from: sim.t, to: null });
     side.snap = side.engine.snapshot();
+    // Answer the click at once rather than after the usual settling frames.
+    const offered = side.loadAt(sim.t) * DB_CAPACITY_RPS;
+    side.status = classify(side.snap, offered, DB_CAPACITY_RPS * 2);
+    side.pending = null;
     setFrame((f) => f + 1);
   };
 
   return (
-    <section
-      ref={rootRef}
-      aria-label="Live demo: the same system under steady and rising traffic"
-      className="panel overflow-hidden text-left"
-    >
+    <div ref={rootRef} className="panel overflow-hidden text-left">
       <div className="flex items-center justify-between gap-3 border-b border-line bg-surface-2 px-4 py-1.5 sm:px-5">
         <span className="inline-flex items-center gap-2 text-xs text-fg-2">
           <span aria-hidden className="live-dot" data-live={running} />
-          {playing ? "Live" : "Paused"}
+          {playing ? "Live simulation" : "Paused"}
         </span>
         <button
           type="button"
@@ -248,7 +257,70 @@ export function CompareDemo() {
           vs
         </span>
       </div>
-    </section>
+      <Legend />
+    </div>
+  );
+}
+
+/** One plain sentence about what this side is doing right now, with live numbers. */
+function Narration({ side }: { side: Side }) {
+  const db = dbOf(side.snap);
+  const util = `${Math.round(Math.min(1, db?.utilization ?? 0) * 100)}%`;
+  const waiting = fmtInt(db?.queueDepth ?? 0);
+  const n = (v: string) => <span className="tnum text-fg">{v}</span>;
+  const p99 = n(`${fmtInt(side.snap.p99Ms)}\u00a0ms`);
+  switch (side.status) {
+    case "healthy":
+      return replicasOf(side) > 1 ? (
+        <>A second database doubled capacity. Every request is served in {p99} again.</>
+      ) : (
+        <>
+          Every request is served in {p99}. The database is {n(util)} busy, with room to spare.
+        </>
+      );
+    case "pressure":
+      return (
+        <>Traffic keeps climbing. The database is {n(util)} busy and running out of headroom.</>
+      );
+    case "about":
+      return (
+        <>
+          The database is at its limit. {n(waiting)} requests wait in line, so responses take {p99}.
+        </>
+      );
+    case "breaking":
+      return (
+        <>
+          The line is full: {n(`${Math.round(side.snap.errorRate * 100)}%`)} of requests are turned
+          away. Users see errors.
+        </>
+      );
+    case "recovering":
+      return replicasOf(side) > 1 ? (
+        <>Capacity doubled. The backlog of {n(waiting)} requests is draining fast.</>
+      ) : (
+        <>Traffic is easing. The backlog of {n(waiting)} requests is draining.</>
+      );
+  }
+}
+
+/** Where this side is in the story: healthy, under pressure, about to break, breaking, recovering. */
+function StageTrack({ status }: { status: Status }) {
+  const at = STAGES.indexOf(status);
+  return (
+    <ol className="stage-track" aria-label="Stages">
+      {STAGES.map((s, i) => (
+        <li
+          key={s}
+          data-tone={STATUS[s].tone}
+          data-state={i < at ? "done" : i === at ? "now" : "next"}
+          aria-current={i === at ? "step" : undefined}
+        >
+          <span aria-hidden className="stage-bar" />
+          <span className="stage-label">{STATUS[s].label}</span>
+        </li>
+      ))}
+    </ol>
   );
 }
 
@@ -271,42 +343,64 @@ function SidePanel({
   const { label, tone } = STATUS[status];
   const offered = side.loadAt(t) * DB_CAPACITY_RPS;
   const replicas = replicasOf(side);
+  const queue = dbOf(snap)?.queueDepth ?? 0;
   const phase = side.key === "rising" ? risingPhaseAt(t) : "quiet";
   const trend: Trend = phase === "rising" ? "up" : phase === "falling" ? "down" : "flat";
   const canScale = status === "pressure" || status === "about" || status === "breaking";
   const p99 = snap.p99Ms;
+  const title = side.key === "steady" ? "Steady traffic" : "Rising traffic";
 
   return (
     <article
-      aria-label={side.key === "steady" ? "Steady traffic" : "Rising traffic"}
-      className={`relative isolate overflow-hidden px-4 pt-4 pb-5 sm:px-6 ${className}`}
+      aria-label={title}
+      className={`side-panel relative isolate flex flex-col px-4 pt-5 pb-5 sm:px-6 ${className}`}
     >
+      <div aria-hidden className="side-bar" data-tone={tone} />
       <div aria-hidden className="heat heat-warn" style={{ opacity: HEAT[status].warn }} />
       <div aria-hidden className="heat heat-bad" style={{ opacity: HEAT[status].bad }} />
 
-      <header className="flex items-center justify-between gap-3">
-        <p className="status" data-tone={tone}>
+      <header>
+        <div className="flex items-center justify-between gap-3">
+          <h3 className="text-[11px] font-medium uppercase tracking-[0.08em] text-fg-3">{title}</h3>
+          <p className="flex items-center gap-1.5 text-xs text-fg-3">
+            <span className="tnum text-sm text-fg">{fmtK(offered)}</span>
+            req/s
+            <TrendArrow trend={trend} />
+          </p>
+        </div>
+        <p className="status mt-2" data-tone={tone}>
           <span aria-hidden className="status-dot" />
           <span key={status} className="status-label">
             {label}
           </span>
         </p>
-        <p className="flex items-center gap-1.5 text-xs text-fg-3">
-          <span className="tnum text-sm text-fg">{(offered / 1000).toFixed(1)}k</span>
-          rps
-          <TrendArrow trend={trend} />
+        <p className="narration mt-1.5 text-[13px] leading-snug text-fg-2">
+          <Narration side={side} />
         </p>
+        <StageTrack status={status} />
       </header>
 
-      <Pipeline side={side} running={running} reduced={reduced} breaking={status === "breaking"} />
+      <Pipeline
+        side={side}
+        offered={offered}
+        running={running}
+        reduced={reduced}
+        breaking={status === "breaking"}
+      />
       <LoadChart side={side} t={t} />
 
-      <footer className="mt-4 flex min-h-11 items-end gap-6">
+      <dl className="mt-5 grid grid-cols-3 gap-3">
         <Stat
-          label="p99 latency"
-          value={Math.round(p99).toLocaleString("en-US")}
+          label="p99 response"
+          value={fmtInt(p99)}
           unit="ms"
           tone={p99 >= 400 ? "bad" : p99 >= 100 ? "warn" : undefined}
+        />
+        <Stat
+          label="Waiting"
+          value={fmtInt(queue)}
+          unit="req"
+          tone={snap.errorRate >= 0.005 ? "bad" : queue > 0 ? "warn" : undefined}
         />
         <Stat
           label="Dropped"
@@ -314,68 +408,81 @@ function SidePanel({
           unit="%"
           tone={snap.errorRate >= 0.005 ? "bad" : undefined}
         />
-        {onScale && (
-          <div className="ml-auto flex h-9 items-center">
-            {replicas > 1 ? (
-              <span className="scaled-note">
-                <CheckGlyph size={11} />
-                Scaled
-              </span>
-            ) : canScale ? (
-              <button
-                type="button"
-                onClick={onScale}
-                className="scale-cta"
-                aria-label="Scale up: add a database replica"
+      </dl>
+
+      <div className="mt-5 flex min-h-9 flex-wrap items-center gap-x-3 gap-y-2">
+        {!onScale ? (
+          <span className="text-xs text-fg-3">
+            Nothing to fix: traffic stays well under capacity.
+          </span>
+        ) : replicas > 1 ? (
+          <span className="scaled-note">
+            <CheckGlyph size={11} />
+            Capacity doubled
+          </span>
+        ) : canScale ? (
+          <>
+            <button
+              type="button"
+              onClick={onScale}
+              className="scale-cta"
+              aria-label="Add a database: scale up to two replicas"
+            >
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 12 12"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                aria-hidden="true"
               >
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 12 12"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinecap="round"
-                  aria-hidden="true"
-                >
-                  <path d="M6 2v8M2 6h8" />
-                </svg>
-                Scale up
-              </button>
-            ) : null}
-          </div>
+                <path d="M6 2v8M2 6h8" />
+              </svg>
+              Add a database
+            </button>
+            <span className="text-xs text-fg-3">Doubles its capacity.</span>
+          </>
+        ) : (
+          <span className="text-xs text-fg-3">Nothing to fix yet.</span>
         )}
-      </footer>
+      </div>
     </article>
   );
 }
 
 function Pipeline({
   side,
+  offered,
   running,
   reduced,
   breaking,
 }: {
   side: Side;
+  offered: number;
   running: boolean;
   reduced: boolean;
   breaking: boolean;
 }) {
   const anchors = useRef<(HTMLElement | null)[]>([]);
+  const queue = dbOf(side.snap)?.queueDepth ?? 0;
+  const dropping = side.snap.errorRate >= 0.005;
   return (
-    <div className="relative mt-6 h-[78px]">
+    <div className="pipe-wrap relative mt-7 h-[100px]">
       <FlowCanvas flow={side.flow} anchors={anchors} running={running} reduced={reduced} />
       <ol className="relative flex justify-between">
         {side.snap.nodes.map((node, i) => {
           const source = node.kind === "client";
+          const tone = source ? undefined : toneOf(node.utilization);
           return (
-            <li key={node.id} className="flex w-14 flex-col items-center gap-2">
+            <li key={node.id} className="flex w-16 flex-col items-center">
               <span
                 ref={(el) => {
                   anchors.current[i] = el;
                 }}
                 className="pipe-node"
-                data-tone={source ? undefined : toneOf(node.utilization)}
+                data-tone={tone}
                 data-source={source || undefined}
                 data-breaking={(breaking && node.id === "db") || undefined}
               >
@@ -383,11 +490,29 @@ function Pipeline({
                 <KindIcon kind={node.kind} size={16} />
                 {node.replicas > 1 && <span className="pipe-badge tnum">×{node.replicas}</span>}
               </span>
-              <span className="text-[11px] leading-none text-fg-3">{node.label}</span>
+              <span className="mt-2 text-[11px] leading-none text-fg-2">{node.label}</span>
+              <span
+                className="tnum mt-1 text-[10px] leading-none transition-colors duration-300"
+                style={{ color: tone ? TONE_FG[tone] : "var(--color-fg-3)" }}
+              >
+                {source
+                  ? `${fmtK(offered)}/s`
+                  : `${Math.round(Math.min(1, node.utilization) * 100)}%`}
+              </span>
             </li>
           );
         })}
       </ol>
+      {queue > 0 && (
+        <span className="pipe-tag" data-tone={dropping ? "bad" : "warn"}>
+          {fmtInt(queue)} waiting
+        </span>
+      )}
+      {dropping && (
+        <span className="pipe-tag pipe-tag-drop" data-tone="bad">
+          {fmtRate(offered * side.snap.errorRate)} dropped
+        </span>
+      )}
     </div>
   );
 }
@@ -447,73 +572,78 @@ function LoadChart({ side, t }: { side: Side; t: number }) {
   const startCap = capAt(t - CHART_SPAN_S);
 
   return (
-    <div className="relative mt-3 h-16">
-      <svg
-        viewBox={`0 0 ${CW} ${CH}`}
-        preserveAspectRatio="none"
-        aria-hidden="true"
-        className="chart-fade absolute inset-0 h-full w-full"
-      >
-        <defs>
-          <clipPath id={`${uid}a`}>
-            <path d={above} />
-          </clipPath>
-          <clipPath id={`${uid}b`}>
-            <path d={below} />
-          </clipPath>
-          <linearGradient id={`${uid}g`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="var(--color-bad)" stopOpacity="0.55" />
-            <stop offset="1" stopColor="var(--color-bad)" stopOpacity="0.15" />
-          </linearGradient>
-        </defs>
-        <path d={`${top}${bottom}Z`} fill={`url(#${uid}g)`} />
-        <path
-          d={line}
-          clipPath={`url(#${uid}b)`}
-          fill="none"
-          stroke="var(--color-fg)"
-          strokeWidth="1.5"
-          strokeLinejoin="round"
-          vectorEffect="non-scaling-stroke"
+    <figure className="mt-5">
+      <figcaption className="text-[11px] leading-none text-fg-3">
+        Traffic over the last 24 s
+      </figcaption>
+      <div className="relative mt-3 h-16">
+        <svg
+          viewBox={`0 0 ${CW} ${CH}`}
+          preserveAspectRatio="none"
+          aria-hidden="true"
+          className="chart-fade absolute inset-0 h-full w-full"
+        >
+          <defs>
+            <clipPath id={`${uid}a`}>
+              <path d={above} />
+            </clipPath>
+            <clipPath id={`${uid}b`}>
+              <path d={below} />
+            </clipPath>
+            <linearGradient id={`${uid}g`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="var(--color-bad)" stopOpacity="0.55" />
+              <stop offset="1" stopColor="var(--color-bad)" stopOpacity="0.15" />
+            </linearGradient>
+          </defs>
+          <path d={`${top}${bottom}Z`} fill={`url(#${uid}g)`} />
+          <path
+            d={line}
+            clipPath={`url(#${uid}b)`}
+            fill="none"
+            stroke="var(--color-fg)"
+            strokeWidth="1.5"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+          />
+          <path
+            d={line}
+            clipPath={`url(#${uid}a)`}
+            fill="none"
+            stroke="var(--color-bad-fg)"
+            strokeWidth="1.75"
+            strokeLinejoin="round"
+            vectorEffect="non-scaling-stroke"
+          />
+        </svg>
+        {/* Capacity is a fixed reference, so it doesn't fade with the history. */}
+        <svg
+          viewBox={`0 0 ${CW} ${CH}`}
+          preserveAspectRatio="none"
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-0 h-full w-full"
+        >
+          <path
+            d={cap}
+            fill="none"
+            stroke="var(--color-warn)"
+            strokeOpacity="0.55"
+            strokeDasharray="3 3"
+            vectorEffect="non-scaling-stroke"
+          />
+        </svg>
+        {startCap < CHART_MAX_RPS && (
+          <span aria-hidden className="chart-cap" style={{ top: `${(y(startCap) / CH) * 100}%` }}>
+            DB capacity · {startCap / 1000}k/s
+          </span>
+        )}
+        <span
+          aria-hidden
+          className="chart-now"
+          data-over={nowRps > nowCap || undefined}
+          style={{ top: `${(y(nowRps) / CH) * 100}%` }}
         />
-        <path
-          d={line}
-          clipPath={`url(#${uid}a)`}
-          fill="none"
-          stroke="var(--color-bad-fg)"
-          strokeWidth="1.75"
-          strokeLinejoin="round"
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
-      {/* Capacity is a fixed reference, so it doesn't fade with the history. */}
-      <svg
-        viewBox={`0 0 ${CW} ${CH}`}
-        preserveAspectRatio="none"
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 h-full w-full"
-      >
-        <path
-          d={cap}
-          fill="none"
-          stroke="var(--color-warn)"
-          strokeOpacity="0.55"
-          strokeDasharray="3 3"
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
-      {startCap < CHART_MAX_RPS && (
-        <span aria-hidden className="chart-cap" style={{ top: `${(y(startCap) / CH) * 100}%` }}>
-          capacity
-        </span>
-      )}
-      <span
-        aria-hidden
-        className="chart-now"
-        data-over={nowRps > nowCap || undefined}
-        style={{ top: `${(y(nowRps) / CH) * 100}%` }}
-      />
-    </div>
+      </div>
+    </figure>
   );
 }
 
@@ -530,16 +660,16 @@ function Stat({
 }) {
   return (
     <div className="min-w-0">
-      <p className="text-[11px] leading-none text-fg-3">{label}</p>
-      <p className="mt-2 whitespace-nowrap leading-none">
+      <dt className="text-[11px] leading-none text-fg-3">{label}</dt>
+      <dd className="mt-2 whitespace-nowrap leading-none">
         <span
-          className="tnum text-2xl tracking-tight transition-colors duration-300"
+          className="tnum text-xl tracking-tight transition-colors duration-300"
           style={{ color: tone ? TONE_FG[tone] : undefined }}
         >
           {value}
         </span>
-        <span className="ml-1 text-xs text-fg-3">{unit}</span>
-      </p>
+        <span className="ml-1 text-[11px] text-fg-3">{unit}</span>
+      </dd>
     </div>
   );
 }
@@ -567,5 +697,33 @@ function TrendArrow({ trend }: { trend: Trend }) {
         {trend === "up" ? "rising" : trend === "down" ? "falling" : "steady"}
       </span>
     </>
+  );
+}
+
+/** What the shapes and colors mean, once, for both halves. */
+function Legend() {
+  return (
+    <ul className="flex flex-wrap items-center gap-x-5 gap-y-2 border-t border-line px-4 py-3 text-[11px] text-fg-3 sm:px-6">
+      <li className="inline-flex items-center gap-2">
+        <span aria-hidden className="lg-swatch lg-request" />
+        Request
+      </li>
+      <li className="inline-flex items-center gap-2">
+        <span aria-hidden className="lg-swatch lg-queue" />
+        Waiting in line
+      </li>
+      <li className="inline-flex items-center gap-2">
+        <span aria-hidden className="lg-swatch lg-drop" />
+        Dropped
+      </li>
+      <li className="inline-flex items-center gap-2">
+        <span aria-hidden className="lg-swatch lg-ring" />
+        Ring: how busy each part is
+      </li>
+      <li className="inline-flex items-center gap-2">
+        <span aria-hidden className="lg-swatch lg-cap" />
+        Database capacity
+      </li>
+    </ul>
   );
 }

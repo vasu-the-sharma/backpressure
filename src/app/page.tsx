@@ -91,9 +91,21 @@ export default function Landing() {
       </section>
 
       {/* ---------------- Live comparison ---------------- */}
-      <div className="rise-in" style={{ animationDelay: "560ms" }}>
+      <section aria-labelledby="compare" className="rise-in" style={{ animationDelay: "560ms" }}>
+        <div className="mb-6 text-center">
+          <h2
+            id="compare"
+            className="text-balance text-2xl font-semibold tracking-tight sm:text-3xl"
+          >
+            Same system. Two kinds of traffic.
+          </h2>
+          <p className="mx-auto mt-2 max-w-xl text-sm leading-relaxed text-fg-2 sm:text-base">
+            Both sides run the identical architecture on the real engine; only the traffic differs.
+            Watch the right side hit its limit, then add a database to rescue it.
+          </p>
+        </div>
         <CompareDemo />
-      </div>
+      </section>
 
       {/* ---------------- Modelled on ---------------- */}
       <Reveal as="section" className="mt-20 border-y border-line py-8">

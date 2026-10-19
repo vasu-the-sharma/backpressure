@@ -491,9 +491,11 @@
     --tone: var(--color-ok);
     display: inline-flex;
     align-items: center;
-    gap: 8px;
-    font-size: 14px;
-    font-weight: 500;
+    gap: 9px;
+    font-size: 19px;
+    font-weight: 600;
+    letter-spacing: -0.016em;
+    line-height: 1.2;
     color: var(--color-fg);
     transition: color 300ms ease-out;
   }
@@ -506,8 +508,8 @@
   }
   .status-dot {
     position: relative;
-    width: 8px;
-    height: 8px;
+    width: 9px;
+    height: 9px;
     border-radius: 999px;
     background: var(--tone);
     transition: background-color 300ms ease-out;
@@ -518,6 +520,157 @@
 
   .trend {
     transition: transform var(--duration-spring) var(--ease-spring);
+  }
+
+  /* Each half: a state-colored edge, room for two lines of narration, and
+     container queries so its labels appear only where they fit. */
+  .side-panel {
+    container: side / inline-size;
+  }
+  .side-bar {
+    --tone: var(--color-ok);
+    position: absolute;
+    inset-inline: 0;
+    top: 0;
+    height: 2px;
+    background: var(--tone);
+    box-shadow: 0 0 14px 1px color-mix(in srgb, var(--tone) 55%, transparent);
+    transition: background-color 400ms ease-out, box-shadow 400ms ease-out;
+  }
+  .side-bar[data-tone="warn"] {
+    --tone: var(--color-warn);
+  }
+  .side-bar[data-tone="bad"] {
+    --tone: var(--color-bad);
+  }
+  .narration {
+    min-height: calc(2 * 1.375em);
+  }
+
+  /* The story so far: five stages, the current one lit and breathing. */
+  .stage-track {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 4px;
+    margin-top: 14px;
+  }
+  .stage-track li {
+    --tone: var(--color-ok);
+    min-width: 0;
+  }
+  .stage-track li[data-tone="warn"] {
+    --tone: var(--color-warn);
+  }
+  .stage-track li[data-tone="bad"] {
+    --tone: var(--color-bad);
+  }
+  .stage-bar {
+    display: block;
+    height: 3px;
+    border-radius: 999px;
+    background: var(--color-fill-2);
+    transition: background-color 400ms ease-out, opacity 400ms ease-out;
+  }
+  .stage-track li[data-state="done"] .stage-bar {
+    background: var(--tone);
+    opacity: 0.4;
+  }
+  .stage-track li[data-state="now"] .stage-bar {
+    background: var(--tone);
+    box-shadow: 0 0 10px color-mix(in srgb, var(--tone) 60%, transparent);
+    animation: stage-now 1.6s ease-in-out infinite;
+  }
+  .stage-label {
+    display: none;
+    margin-top: 6px;
+    overflow: hidden;
+    font-size: 10px;
+    line-height: 1;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: var(--color-fg-4);
+    transition: color 300ms ease-out;
+  }
+  .stage-track li[data-state="done"] .stage-label {
+    color: var(--color-fg-3);
+  }
+  .stage-track li[data-state="now"] .stage-label {
+    color: var(--color-fg);
+  }
+  @container side (min-width: 26rem) {
+    .stage-label {
+      display: block;
+    }
+  }
+
+  /* Callouts on the queue in front of the database, where there's room. */
+  .pipe-wrap {
+    container: pipe / inline-size;
+  }
+  .pipe-tag {
+    --tone: var(--color-warn);
+    position: absolute;
+    /* Midway between the third and fourth of four 64px columns. */
+    left: calc((500% - 128px) / 6);
+    top: -4px;
+    display: none;
+    transform: translateX(-50%);
+    padding: 3px 6px;
+    border-radius: 6px;
+    border: 1px solid color-mix(in srgb, var(--tone) 35%, transparent);
+    background: color-mix(in srgb, var(--tone) 14%, var(--color-canvas));
+    color: color-mix(in srgb, var(--tone) 70%, #fff);
+    font-family: var(--font-mono);
+    font-size: 10px;
+    line-height: 1;
+    white-space: nowrap;
+  }
+  .pipe-tag[data-tone="bad"] {
+    --tone: var(--color-bad);
+  }
+  .pipe-tag-drop {
+    top: 32px;
+  }
+  @container pipe (min-width: 28rem) {
+    .pipe-tag {
+      display: inline-flex;
+    }
+  }
+
+  /* Legend swatches: the same marks the demo draws. */
+  .lg-swatch {
+    display: inline-block;
+    flex-shrink: 0;
+  }
+  .lg-request,
+  .lg-drop {
+    width: 6px;
+    height: 6px;
+    border-radius: 999px;
+    background: #fff;
+    box-shadow: 0 0 6px rgb(255 255 255 / 0.6);
+  }
+  .lg-drop {
+    background: var(--color-bad);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--color-bad) 70%, transparent);
+  }
+  .lg-queue {
+    width: 15px;
+    height: 6px;
+    background-image: radial-gradient(circle, var(--color-warn) 1.5px, transparent 2px);
+    background-size: 5px 6px;
+  }
+  .lg-ring {
+    width: 12px;
+    height: 12px;
+    border-radius: 999px;
+    background: conic-gradient(var(--color-ok) 0 65%, rgb(255 255 255 / 0.14) 0);
+    -webkit-mask: radial-gradient(circle, transparent 3.6px, #000 4.2px);
+    mask: radial-gradient(circle, transparent 3.6px, #000 4.2px);
+  }
+  .lg-cap {
+    width: 16px;
+    border-top: 1px dashed color-mix(in srgb, var(--color-warn) 75%, transparent);
   }
 
   /* Pipeline nodes: a utilization ring that fills and changes state color. */
@@ -1009,6 +1162,11 @@
     box-shadow: 0 0 0 9px color-mix(in srgb, var(--color-bad) 0%, transparent);
   }
 }
+@keyframes stage-now {
+  50% {
+    opacity: 0.55;
+  }
+}
 @keyframes invite {
   0% {
     box-shadow: 0 0 0 0 rgb(255 255 255 / 0.4);
@@ -1278,7 +1436,8 @@
   .pipe-badge,
   .chart-now,
   .scale-cta,
-  .scaled-note {
+  .scaled-note,
+  .stage-bar {
     animation: none;
   }
   .trend {
