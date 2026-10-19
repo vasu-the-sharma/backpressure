@@ -42,10 +42,41 @@ export function buildDesignGraph(challenge: Challenge, design: DesignSpec): Syst
   };
 }
 
+/** Kinds along the primary path, in order: the walk the engine takes (first out-edge each time). */
+function primaryPathKinds(graph: SystemGraph): SimNode["kind"][] {
+  const next = new Map<string, string>();
+  for (const e of graph.edges) if (!next.has(e.from)) next.set(e.from, e.to);
+  const byId = new Map(graph.nodes.map((n) => [n.id, n]));
+  const kinds: SimNode["kind"][] = [];
+  const seen = new Set<string>();
+  let at: string | undefined = graph.entryId;
+  while (at !== undefined && !seen.has(at)) {
+    seen.add(at);
+    const node = byId.get(at);
+    if (node) kinds.push(node.kind);
+    at = next.get(at);
+  }
+  return kinds;
+}
+
 /** Everything that stops a design from being scored, in plain language (empty = valid). */
 export function validateChallengeDesign(challenge: Challenge, graph: SystemGraph): string[] {
   const errors = validateDesign(graph, challenge.requiredKinds);
   if (errors.length > 0) return errors;
+
+  if (challenge.before?.length) {
+    const path = primaryPathKinds(graph);
+    for (const [first, then] of challenge.before) {
+      const a = path.indexOf(first);
+      const b = path.indexOf(then);
+      if (b !== -1 && (a === -1 || a > b)) {
+        errors.push(
+          `Requests must reach the ${kindLabel(challenge, first)} before the ${kindLabel(challenge, then)}.`,
+        );
+      }
+    }
+    if (errors.length > 0) return errors;
+  }
 
   for (const node of graph.nodes) {
     const o = kindOverride(challenge, node.kind);

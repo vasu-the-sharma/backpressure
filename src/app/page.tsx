@@ -13,11 +13,16 @@ import { PlaygroundVignette, QuizVignette, SystemsVignette } from "@/components/
 import { VerticalIcon } from "@/components/icons";
 import { ChevronRight } from "@/components/ui";
 import { getAllChallenges } from "@/content/challenges/registry";
+import { dailyNumberAt } from "@/content/daily/calendar";
+import { getDailyPuzzle } from "@/content/daily/generate";
 import { getAllQuizzes } from "@/content/quizzes/registry";
 import { getAllSystems } from "@/content/registry";
 import { type Vertical, verticals } from "@/content/verticals";
 import Link from "next/link";
 import type { ReactNode } from "react";
+
+// Rebuilt every ten minutes so the daily pill rolls over soon after midnight UTC.
+export const revalidate = 600;
 
 const VIGNETTES: Record<string, ReactNode> = {
   systems: <SystemsVignette />,
@@ -46,6 +51,8 @@ export default function Landing() {
     quiz: `${quizzes.reduce((n, q) => n + q.questions.length, 0)} questions`,
   };
 
+  const daily = getDailyPuzzle(Math.max(1, dailyNumberAt(Date.now())));
+
   // Every real-world system the catalog and challenges are modelled on.
   const modelled = Array.from(
     new Set([...systems.map((s) => s.name), ...challenges.map((c) => c.company)]),
@@ -62,6 +69,14 @@ export default function Landing() {
       >
         <div aria-hidden className="hero-dots" />
         <div aria-hidden className="hero-dots hero-spot" />
+        <Link href="/daily" className="daily-pill focus-ring rise-in mb-8">
+          <span aria-hidden className="live-dot" data-live="true" />
+          <span className="truncate">
+            Daily <span className="tnum">#{daily.number}</span> · {daily.challenge.title}
+          </span>
+          <span className="tnum text-fg-3">par {daily.par}</span>
+          <ChevronRight size={12} className="shrink-0" />
+        </Link>
         <h1 className="display text-5xl sm:text-7xl lg:text-[5.5rem]">
           <RiseWords text="Watch systems" />
           <br />

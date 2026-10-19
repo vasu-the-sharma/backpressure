@@ -8,14 +8,16 @@ import {
   real,
   text,
   timestamp,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 /**
  * The database schema. The first four tables are the ones Auth.js needs
  * (users, accounts, sessions, verification tokens), with two additions on
- * `users`: a role and a last-seen timestamp. The last two record what a
+ * `users`: a role and a last-seen timestamp. The next two record what a
  * signed-in client does — every Playground run and every finished quiz,
  * re-graded on the server — so an admin can follow each client's progress.
+ * Then the daily puzzle's results, and the waitlist for paid plans.
  */
 
 export const roleEnum = pgEnum("role", ["client", "admin"]);
@@ -109,4 +111,48 @@ export const quizAttempts = pgTable(
     createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
   },
   (t) => [index("quiz_attempt_user_idx").on(t.userId, t.createdAt)],
+);
+
+/**
+ * A signed-in player's best passing design for one daily puzzle (fewest
+ * servers, then lowest P99). One row per player per day; the leaderboard
+ * reads it in rank order.
+ */
+export const dailyResults = pgTable(
+  "daily_result",
+  {
+    day: integer("day").notNull(),
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    servers: integer("servers").notNull(),
+    p99Ms: integer("p99_ms").notNull(),
+    errorRate: real("error_rate").notNull(),
+    solvedAt: timestamp("solved_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.day, t.userId] }),
+    index("daily_result_rank_idx").on(t.day, t.servers, t.p99Ms, t.solvedAt),
+  ],
+);
+
+/**
+ * Interest in a paid plan before it exists. `priceVariant`/`priceCents`
+ * record the price the person saw, which is what a price test compares.
+ */
+export const waitlist = pgTable(
+  "waitlist",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    email: text("email").notNull(),
+    userId: text("user_id").references(() => users.id, { onDelete: "set null" }),
+    plan: text("plan").notNull(),
+    source: text("source").notNull(),
+    priceVariant: text("price_variant"),
+    priceCents: integer("price_cents"),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("waitlist_email_plan_idx").on(t.email, t.plan)],
 );

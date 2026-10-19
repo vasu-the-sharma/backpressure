@@ -1,10 +1,19 @@
 "use server";
 
 import { auth } from "@/auth";
+import { dailyNumberAt } from "@/content/daily/calendar";
 import { getDb } from "@/db";
 import type { Role } from "@/db/schema";
 import { revalidatePath } from "next/cache";
-import { isAuthConfigured } from "./config";
+import { z } from "zod";
+import { isAuthConfigured, isDbConfigured } from "./config";
+import {
+  type DailyRunInput,
+  addToWaitlist,
+  dailyRunInput,
+  gradeDailyRun,
+  recordDailyResult,
+} from "./daily";
 import {
   type ChallengeRunInput,
   type QuizAttemptInput,
@@ -46,6 +55,59 @@ export async function saveQuizAttempt(input: QuizAttemptInput): Promise<SaveResu
   if (!graded.ok) return { saved: false, reason: "invalid" };
   await insertQuizAttempt(getDb(), userId, graded);
   return { saved: true };
+}
+
+export type DailySubmitResult =
+  | { saved: true; improved: boolean }
+  | { saved: false; reason: "signed-out" | "invalid" | "expired" | "not-passed" };
+
+/**
+ * Put a passing run on today's leaderboard. The server re-scores the design
+ * against the day's puzzle; only today's puzzle counts.
+ */
+export async function submitDailyRun(input: DailyRunInput): Promise<DailySubmitResult> {
+  const userId = await currentUserId();
+  if (!userId) return { saved: false, reason: "signed-out" };
+  const parsed = dailyRunInput.safeParse(input);
+  if (!parsed.success) return { saved: false, reason: "invalid" };
+  if (parsed.data.day !== dailyNumberAt(Date.now())) return { saved: false, reason: "expired" };
+  const graded = gradeDailyRun(parsed.data);
+  if (!graded.ok) return { saved: false, reason: "invalid" };
+  if (!graded.run.passed) return { saved: false, reason: "not-passed" };
+  const { improved } = await recordDailyResult(getDb(), userId, graded.run);
+  revalidatePath("/daily");
+  return { saved: true, improved };
+}
+
+const waitlistInput = z.object({
+  plan: z.enum(["pro", "teams"]),
+  source: z.string().min(1).max(40),
+  email: z.string().trim().email().max(254).optional(),
+  priceVariant: z.string().max(40).optional(),
+  priceCents: z.number().int().min(0).max(1_000_000).optional(),
+});
+export type WaitlistInput = z.infer<typeof waitlistInput>;
+export type WaitlistResult =
+  | { joined: true; already: boolean }
+  | { joined: false; reason: "unavailable" | "invalid-email" };
+
+/** Join a paid plan's waitlist. Signed-in people join with their account's email. */
+export async function joinWaitlist(input: WaitlistInput): Promise<WaitlistResult> {
+  if (!isDbConfigured()) return { joined: false, reason: "unavailable" };
+  const parsed = waitlistInput.safeParse(input);
+  if (!parsed.success) return { joined: false, reason: "invalid-email" };
+  let email = parsed.data.email;
+  let userId: string | null = null;
+  if (isAuthConfigured()) {
+    const session = await auth();
+    if (session?.user?.id) {
+      userId = session.user.id;
+      email = session.user.email ?? email;
+    }
+  }
+  if (!email) return { joined: false, reason: "invalid-email" };
+  const { added } = await addToWaitlist(getDb(), { ...parsed.data, email, userId });
+  return { joined: true, already: !added };
 }
 
 export type RoleFormState = { error?: string; done?: boolean };

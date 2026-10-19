@@ -24,21 +24,23 @@ const nodeKind = z.enum([
 ]);
 const id = z.string().min(1).max(64);
 
+/** A design as the canvas sends it. Any kind parses; graders reject kinds a scenario doesn't offer. */
+export const designInput = z.object({
+  nodes: z
+    .array(
+      z.object({
+        id,
+        kind: nodeKind,
+        replicas: z.number().int().min(1).max(64).optional(),
+      }),
+    )
+    .max(40),
+  edges: z.array(z.tuple([id, id])).max(160),
+});
+
 export const challengeRunInput = z.object({
   slug: z.string().min(1).max(100),
-  design: z.object({
-    nodes: z
-      .array(
-        z.object({
-          id,
-          // Any kind parses; the palette check below rejects ones the challenge doesn't offer.
-          kind: nodeKind,
-          replicas: z.number().int().min(1).max(64).optional(),
-        }),
-      )
-      .max(40),
-    edges: z.array(z.tuple([id, id])).max(160),
-  }),
+  design: designInput,
 });
 export type ChallengeRunInput = z.infer<typeof challengeRunInput>;
 

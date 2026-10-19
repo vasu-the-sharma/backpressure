@@ -35,7 +35,16 @@ import { saveChallengeRun } from "@/server/actions";
 import { NODE_DEFAULTS } from "@/sim/defaults";
 import { type ScoreResult, TICK_MS, scoreDesign } from "@/sim/score";
 import type { NodeKind } from "@/sim/types";
-import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import {
+  type ReactNode,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
 interface DesignData extends Record<string, unknown> {
   kind: NodeKind;
@@ -92,11 +101,16 @@ function scenarioRules(challenge: Challenge): string[] {
       rules.push(`${name} is bandwidth-bound: ${formatBandwidth(o.bandwidthPerTick)} per replica.`);
     }
     if (o.cacheHitRatio !== undefined) {
-      rules.push(`${name} serves ${Math.round(o.cacheHitRatio * 100)}% of requests itself.`);
+      rules.push(`${name} serves ${Math.round(o.cacheHitRatio * 1000) / 10}% of requests itself.`);
     }
     if (o.maxReplicas !== undefined) {
       rules.push(`${name} is capped at ${o.maxReplicas} replica${o.maxReplicas > 1 ? "s" : ""}.`);
     }
+  }
+  for (const [first, then] of challenge.before ?? []) {
+    rules.push(
+      `Requests reach the ${kindLabel(challenge, first)} before the ${kindLabel(challenge, then)}.`,
+    );
   }
   if (challenge.load.requestBytes && challenge.load.requestBytes > 1) {
     rules.push(
@@ -271,7 +285,22 @@ function markSolved(slug: string) {
   }
 }
 
-function CanvasInner({ challenge }: { challenge: Challenge }) {
+/**
+ * A mode turns the canvas into another game on the same engine: it receives
+ * each scored run instead of the Playground's save, and adds its own pieces
+ * to the brief and the verdict. The daily puzzle uses this.
+ */
+export interface CanvasMode {
+  onScored: (design: DesignSpec, result: ScoreResult) => void;
+  /** At the top of the brief, e.g. the goal and par. */
+  briefTop?: ReactNode;
+  /** Beside the Run button, live as the design changes, e.g. a server count. */
+  meter?: (design: DesignSpec) => ReactNode;
+  /** Under the verdict once a run is scored. */
+  afterResult?: ReactNode;
+}
+
+function CanvasInner({ challenge, mode }: { challenge: Challenge; mode?: CanvasMode }) {
   const [nodes, setNodes, onNodesChange] = useNodesState<DesignNode>([entryNode()]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [result, setResult] = useState<ScoreResult | null>(null);
@@ -400,13 +429,17 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
   const { state: saveState, save } = useSaveProgress();
   const [sheetSnap, setSheetSnap] = useState<SheetSnap>("peek");
 
-  const run = useCallback(() => {
-    const design: DesignSpec = {
+  const design = useMemo<DesignSpec>(
+    () => ({
       nodes: nodes
         .filter((n) => !n.data.isEntry)
         .map((n) => ({ id: n.id, kind: n.data.kind, replicas: n.data.replicas })),
       edges: edges.map((e) => [e.source, e.target]),
-    };
+    }),
+    [nodes, edges],
+  );
+
+  const run = useCallback(() => {
     const graph = buildDesignGraph(challenge, design);
     const problems = validateChallengeDesign(challenge, graph);
     if (problems.length > 0) {
@@ -434,10 +467,14 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
     setResult(res);
     // On phones, lift the sheet so the verdict is visible without a gesture.
     setSheetSnap((s) => (s === "peek" ? "half" : s));
+    if (mode) {
+      mode.onScored(design, res);
+      return;
+    }
     if (res.pass) markSolved(challenge.slug);
     // The server re-scores the same design before recording it.
     void save(() => saveChallengeRun({ slug: challenge.slug, design }));
-  }, [nodes, edges, challenge, setNodes, save]);
+  }, [design, challenge, setNodes, save, mode]);
 
   // ⌘/Ctrl + Enter runs the design from anywhere on the page.
   useEffect(() => {
@@ -457,7 +494,7 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
   const rules = scenarioRules(challenge);
 
   const runButtons = (
-    <div className="flex gap-2">
+    <div className="flex items-center gap-2">
       <button
         type="button"
         onClick={run}
@@ -477,6 +514,7 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
       >
         Reset
       </button>
+      {mode?.meter?.(design)}
     </div>
   );
 
@@ -497,12 +535,15 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
       )}
 
       {result ? (
-        <Results
-          result={result}
-          solution={challenge.solution}
-          onLoadReference={() => loadDesign(challenge.calibration.reference)}
-          saveState={saveState}
-        />
+        <>
+          <Results
+            result={result}
+            solution={challenge.solution}
+            onLoadReference={() => loadDesign(challenge.calibration.reference)}
+            saveState={saveState}
+          />
+          {mode?.afterResult}
+        </>
       ) : (
         errors.length === 0 && (
           <p className="mt-3 text-xs leading-relaxed text-fg-3">
@@ -524,7 +565,7 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
     </>
   );
 
-  const brief = (
+  const briefRest = (
     <>
       <section className="border-b border-line p-4">
         <h2 className="text-xs text-fg-3">Objective</h2>
@@ -572,6 +613,12 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
           </div>
         </dl>
       </section>
+    </>
+  );
+  const brief = (
+    <>
+      {mode?.briefTop}
+      {briefRest}
     </>
   );
 
@@ -642,11 +689,26 @@ function CanvasInner({ challenge }: { challenge: Challenge }) {
         className="panel hidden flex-col self-start overflow-hidden lg:flex"
         aria-label="Challenge brief"
       >
-        {brief}
-        <section className="p-4">
-          {runButtons}
-          {outcome}
-        </section>
+        {mode ? (
+          // A mode's verdict is the point of the page: keep Run and the result
+          // in view, right under the goal, with the details below.
+          <>
+            {mode.briefTop}
+            <section className="border-b border-line p-4">
+              {runButtons}
+              {outcome}
+            </section>
+            {briefRest}
+          </>
+        ) : (
+          <>
+            {brief}
+            <section className="p-4">
+              {runButtons}
+              {outcome}
+            </section>
+          </>
+        )}
       </aside>
 
       {/* Phones: the same brief in a draggable sheet; Run stays reachable at all times. */}
@@ -745,10 +807,10 @@ function Results({
   );
 }
 
-export function PlaygroundCanvas({ challenge }: { challenge: Challenge }) {
+export function PlaygroundCanvas({ challenge, mode }: { challenge: Challenge; mode?: CanvasMode }) {
   return (
     <ReactFlowProvider>
-      <CanvasInner challenge={challenge} />
+      <CanvasInner challenge={challenge} mode={mode} />
     </ReactFlowProvider>
   );
 }
