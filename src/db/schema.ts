@@ -17,7 +17,8 @@ import {
  * `users`: a role and a last-seen timestamp. The next two record what a
  * signed-in client does — every Playground run and every finished quiz,
  * re-graded on the server — so an admin can follow each client's progress.
- * Then the daily puzzle's results, and the waitlist for paid plans.
+ * Then the daily puzzle's results, the waitlist for paid plans, and the
+ * live price test (who saw which price, and their price-perception answers).
  */
 
 export const roleEnum = pgEnum("role", ["client", "admin"]);
@@ -152,7 +153,48 @@ export const waitlist = pgTable(
     source: text("source").notNull(),
     priceVariant: text("price_variant"),
     priceCents: integer("price_cents"),
+    /** The price test's arm, region and billing period, when a price was shown. */
+    arm: text("arm"),
+    segment: text("segment"),
+    period: text("period"),
+    visitorId: text("visitor_id"),
     createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
   },
   (t) => [uniqueIndex("waitlist_email_plan_idx").on(t.email, t.plan)],
 );
+
+/**
+ * One visitor seeing a Pro price on one page on one day: the denominator of
+ * the price test. Logged by the page itself, so crawlers that don't run
+ * scripts aren't counted.
+ */
+export const priceExposures = pgTable(
+  "price_exposure",
+  {
+    visitorId: text("visitor_id").notNull(),
+    page: text("page").notNull(),
+    day: integer("day").notNull(),
+    arm: text("arm").notNull(),
+    segment: text("segment").notNull(),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.visitorId, t.page, t.day] }),
+    index("price_exposure_arm_idx").on(t.segment, t.arm),
+  ],
+);
+
+/** Van Westendorp answers (monthly price, in the segment's currency), kept even when inconsistent. */
+export const priceSurveys = pgTable("price_survey", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  visitorId: text("visitor_id"),
+  segment: text("segment").notNull(),
+  currency: text("currency").notNull(),
+  tooCheap: integer("too_cheap").notNull(),
+  cheap: integer("cheap").notNull(),
+  expensive: integer("expensive").notNull(),
+  tooExpensive: integer("too_expensive").notNull(),
+  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+});

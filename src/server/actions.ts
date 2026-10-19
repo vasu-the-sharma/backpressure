@@ -2,6 +2,7 @@
 
 import { auth } from "@/auth";
 import { dailyNumberAt } from "@/content/daily/calendar";
+import { priceFor, variantId } from "@/content/pricing/plans";
 import { getDb } from "@/db";
 import type { Role } from "@/db/schema";
 import { revalidatePath } from "next/cache";
@@ -22,8 +23,10 @@ import {
   gradeQuizAttempt,
   quizAttemptInput,
 } from "./grade";
+import { recordSurvey } from "./pricing";
 import { insertChallengeRun, insertQuizAttempt } from "./progress";
 import { setRole } from "./users";
+import { priceVisitor } from "./visitor";
 
 export type SaveResult = { saved: true } | { saved: false; reason: "signed-out" | "invalid" };
 
@@ -83,8 +86,8 @@ const waitlistInput = z.object({
   plan: z.enum(["pro", "teams"]),
   source: z.string().min(1).max(40),
   email: z.string().trim().email().max(254).optional(),
-  priceVariant: z.string().max(40).optional(),
-  priceCents: z.number().int().min(0).max(1_000_000).optional(),
+  /** Set when a Pro price was on screen: which billing period the person chose. */
+  period: z.enum(["monthly", "annual"]).optional(),
 });
 export type WaitlistInput = z.infer<typeof waitlistInput>;
 export type WaitlistResult =
@@ -106,8 +109,42 @@ export async function joinWaitlist(input: WaitlistInput): Promise<WaitlistResult
     }
   }
   if (!email) return { joined: false, reason: "invalid-email" };
-  const { added } = await addToWaitlist(getDb(), { ...parsed.data, email, userId });
+  const { plan, source, period } = parsed.data;
+  // The price the person saw comes from their arm on the server, never from the client.
+  const priced =
+    plan === "pro" && period
+      ? await priceVisitor().then((v) => ({
+          arm: v.arm,
+          segment: v.segment,
+          period,
+          visitorId: v.visitorId,
+          priceVariant: variantId(v.segment, v.arm, period),
+          priceCents: priceFor(v.segment, v.arm, period) * 100,
+        }))
+      : {};
+  const { added } = await addToWaitlist(getDb(), { plan, source, email, userId, ...priced });
   return { joined: true, already: !added };
+}
+
+const surveyInput = z.object({
+  tooCheap: z.number().int().min(0).max(1_000_000),
+  cheap: z.number().int().min(0).max(1_000_000),
+  expensive: z.number().int().min(0).max(1_000_000),
+  tooExpensive: z.number().int().min(0).max(1_000_000),
+});
+export type PriceSurveyInput = z.infer<typeof surveyInput>;
+
+/**
+ * Van Westendorp answers for a monthly Pro price, in the visitor's currency.
+ * Stored as given; the analysis sets contradictory answers aside and counts them.
+ */
+export async function submitPriceSurvey(input: PriceSurveyInput): Promise<{ saved: boolean }> {
+  if (!isDbConfigured()) return { saved: false };
+  const parsed = surveyInput.safeParse(input);
+  if (!parsed.success) return { saved: false };
+  const v = await priceVisitor();
+  await recordSurvey(getDb(), { visitorId: v.visitorId, segment: v.segment, ...parsed.data });
+  return { saved: true };
 }
 
 export type RoleFormState = { error?: string; done?: boolean };

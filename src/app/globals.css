@@ -1034,6 +1034,11 @@
     color: var(--color-warn-fg);
     border-color: color-mix(in srgb, var(--color-warn) 40%, transparent);
   }
+  /* The plan we recommend stands slightly forward of the others. */
+  .plan-recommended {
+    border-color: rgb(255 255 255 / 0.26);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06), 0 24px 60px -32px rgb(255 255 255 / 0.28);
+  }
   /* The homepage's way into today's puzzle. */
   .daily-pill {
     display: inline-flex;
