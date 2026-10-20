@@ -1,11 +1,14 @@
 import { auth } from "@/auth";
 import { Waitlist } from "@/components/daily/Waitlist";
+import { PriceExposure } from "@/components/pricing/PriceExposure";
 import { Breadcrumbs, ChevronRight } from "@/components/ui";
 import { dailyLabelDate, dailyNumberAt } from "@/content/daily/calendar";
 import { TEMPLATE_LABEL, getDailyPuzzle } from "@/content/daily/generate";
+import { PRO_PRICES, formatMoney } from "@/content/pricing/plans";
 import { getDb } from "@/db";
 import { isAuthConfigured, isDbConfigured } from "@/server/config";
 import { solversByDay } from "@/server/daily";
+import { priceVisitor } from "@/server/visitor";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -20,6 +23,8 @@ export default async function DailyArchivePage() {
   const session = accounts ? await auth() : null;
   const admin = session?.user?.role === "admin";
   const solvers = accounts && days.length ? await solversByDay(getDb(), 1, today - 1) : null;
+  const visitor = await priceVisitor();
+  const price = PRO_PRICES[visitor.segment][visitor.arm];
 
   return (
     <div>
@@ -30,17 +35,31 @@ export default async function DailyArchivePage() {
       </header>
 
       <section className="panel mb-8 flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+        <PriceExposure page="daily-archive" />
         <div className="max-w-xl">
           <p className="text-base font-medium text-fg">
             Past puzzles are part of Backpressure Pro.
           </p>
           <p className="mt-1 text-sm text-fg-2">
-            Play any day you missed, against its par and its leaderboard. Pro is coming soon.
+            Play any day you missed, against its par and its leaderboard. Pro is coming soon at{" "}
+            <span className="tnum text-fg">{formatMoney(price.monthly, price.currency)}</span> a
+            month.{" "}
+            <Link
+              href="/pricing"
+              className="text-fg underline decoration-line-strong underline-offset-2"
+            >
+              See plans
+            </Link>
           </p>
         </div>
         <div className="sm:w-[22rem] sm:shrink-0">
           {isDbConfigured() ? (
-            <Waitlist source="daily-archive" signedIn={Boolean(session?.user?.id)} />
+            <Waitlist
+              source="daily-archive"
+              signedIn={Boolean(session?.user?.id)}
+              period="monthly"
+              survey={{ currency: price.currency }}
+            />
           ) : (
             <p className="text-sm text-fg-3">The waitlist opens soon.</p>
           )}
