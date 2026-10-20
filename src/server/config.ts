@@ -26,3 +26,16 @@ export function adminEmails(): Set<string> {
       .filter(Boolean),
   );
 }
+
+/** Where privacy and support requests go (`CONTACT_EMAIL`), when set. */
+export function contactEmail(): string | null {
+  return process.env.CONTACT_EMAIL?.trim() || null;
+}
+
+/**
+ * Email goes out through Resend once `RESEND_API_KEY` and `EMAIL_FROM` are
+ * set. `AUTH_SECRET` is needed too: it signs every unsubscribe link.
+ */
+export function isEmailConfigured(): boolean {
+  return Boolean(process.env.RESEND_API_KEY && process.env.EMAIL_FROM && process.env.AUTH_SECRET);
+}

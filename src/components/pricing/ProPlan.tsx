@@ -12,16 +12,19 @@ import { useState } from "react";
 
 /**
  * Pro's price for this visitor's arm, with a monthly/annual switch. Joining
- * the waitlist records which billing period they picked.
+ * the waitlist records which billing period they picked; visitors in the
+ * price test (`survey`) are then asked what price feels right.
  */
 export function ProPlan({
   price,
   signedIn,
   waitlistOpen,
+  survey,
 }: {
   price: ProPrice;
   signedIn: boolean;
   waitlistOpen: boolean;
+  survey: boolean;
 }) {
   const [period, setPeriod] = useState<Period>("monthly");
   const save = annualSaving(price);
@@ -68,7 +71,7 @@ export function ProPlan({
             source="pricing"
             signedIn={signedIn}
             period={period}
-            survey={{ currency: price.currency }}
+            survey={survey ? { currency: price.currency } : undefined}
           />
         ) : (
           <p className="text-sm text-fg-3">The waitlist opens soon.</p>

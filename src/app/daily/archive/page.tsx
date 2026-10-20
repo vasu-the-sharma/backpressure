@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { Waitlist } from "@/components/daily/Waitlist";
+import { ConsentBanner } from "@/components/pricing/Consent";
 import { PriceExposure } from "@/components/pricing/PriceExposure";
 import { Breadcrumbs, ChevronRight } from "@/components/ui";
 import { dailyLabelDate, dailyNumberAt } from "@/content/daily/calendar";
@@ -34,8 +35,10 @@ export default async function DailyArchivePage() {
         <p className="mt-1 text-xs text-fg-3">Every daily so far, newest first.</p>
       </header>
 
+      {visitor.consent === "ask" && <ConsentBanner />}
+
       <section className="panel mb-8 flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
-        <PriceExposure page="daily-archive" />
+        {visitor.randomized && <PriceExposure page="daily-archive" />}
         <div className="max-w-xl">
           <p className="text-base font-medium text-fg">
             Past puzzles are part of Backpressure Pro.
@@ -58,7 +61,7 @@ export default async function DailyArchivePage() {
               source="daily-archive"
               signedIn={Boolean(session?.user?.id)}
               period="monthly"
-              survey={{ currency: price.currency }}
+              survey={visitor.randomized ? { currency: price.currency } : undefined}
             />
           ) : (
             <p className="text-sm text-fg-3">The waitlist opens soon.</p>

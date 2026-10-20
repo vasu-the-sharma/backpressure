@@ -1,9 +1,11 @@
 import { AuthProvider } from "@/components/AuthProvider";
 import { HeaderShell } from "@/components/HeaderShell";
 import { Logo } from "@/components/Logo";
+import { SiteAnalytics } from "@/components/SiteAnalytics";
 import { SiteNav } from "@/components/SiteNav";
 import { UserMenu } from "@/components/UserMenu";
 import { liveVerticals } from "@/content/verticals";
+import { SITE_URL } from "@/lib/site";
 import { isAuthConfigured } from "@/server/config";
 import type { Metadata, Viewport } from "next";
 import { Inter, JetBrains_Mono } from "next/font/google";
@@ -32,11 +34,7 @@ export const metadata: Metadata = {
     "Interactive, honest models of how large-scale systems behave under load. Send traffic, break a node, scale it, and watch the bottleneck move.",
   applicationName: "Backpressure",
   // Absolute base for the social image and other metadata URLs.
-  metadataBase: new URL(
-    process.env.VERCEL_PROJECT_PRODUCTION_URL
-      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-      : "http://localhost:3000",
-  ),
+  metadataBase: new URL(SITE_URL),
   openGraph: { siteName: "Backpressure", type: "website" },
   twitter: { card: "summary_large_image" },
 };
@@ -74,14 +72,14 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           </main>
 
           <footer className="border-t border-line">
-            <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:grid-cols-[1fr_auto] sm:px-6">
+            <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:grid-cols-[1fr_auto_auto] sm:gap-16 sm:px-6">
               <div className="max-w-sm">
                 <Logo />
                 <p className="mt-3 text-xs leading-relaxed text-fg-3">
                   Break it here, not in production.
                 </p>
               </div>
-              <nav aria-label="Footer">
+              <nav aria-label="Product">
                 <p className="text-xs font-medium text-fg">Product</p>
                 <ul className="mt-3 space-y-2">
                   {[
@@ -100,9 +98,28 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
                   ))}
                 </ul>
               </nav>
+              <nav aria-label="Legal">
+                <p className="text-xs font-medium text-fg">Legal</p>
+                <ul className="mt-3 space-y-2">
+                  {[
+                    { name: "Privacy", href: "/privacy" },
+                    { name: "Terms", href: "/terms" },
+                  ].map((l) => (
+                    <li key={l.href}>
+                      <Link
+                        href={l.href}
+                        className="focus-ring rounded-sm text-xs text-fg-3 transition-colors duration-150 ease-out hover:text-fg"
+                      >
+                        {l.name}
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </nav>
             </div>
           </footer>
         </AuthProvider>
+        <SiteAnalytics />
       </body>
     </html>
   );

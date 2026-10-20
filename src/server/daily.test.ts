@@ -4,12 +4,17 @@ import { addUser, testDb } from "@/test/db";
 import { describe, expect, it } from "vitest";
 import {
   addToWaitlist,
+  countRecentFromNetwork,
   dailyAdminStats,
   dailyStandings,
   dailyStreak,
+  forgetNetworkFingerprints,
   gradeDailyRun,
+  leaveWaitlist,
   publicName,
   recordDailyResult,
+  waitlistCounts,
+  waitlistEntries,
 } from "./daily";
 
 const DAY = 2;
@@ -106,6 +111,55 @@ describe("waitlist", () => {
     const stats = await dailyAdminStats(db, DAY);
     expect(stats.waitlist).toBe(2);
     expect(stats.recent[0]?.email).toBe("ada@example.com");
+  });
+
+  it("counts recent sign-ups per network, then forgets the fingerprints", async () => {
+    const db = await testDb();
+    const hourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    for (const email of ["a@example.com", "b@example.com"]) {
+      await addToWaitlist(db, { email, plan: "pro", source: "pricing", ipHash: "net-1" });
+    }
+    await addToWaitlist(db, {
+      email: "c@example.com",
+      plan: "pro",
+      source: "pricing",
+      ipHash: "net-2",
+    });
+    expect(await countRecentFromNetwork(db, "net-1", hourAgo)).toBe(2);
+    expect(await countRecentFromNetwork(db, "net-1", new Date(Date.now() + 1000))).toBe(0);
+
+    await forgetNetworkFingerprints(db, new Date(Date.now() + 1000));
+    expect(await countRecentFromNetwork(db, "net-1", hourAgo)).toBe(0);
+    expect(await countRecentFromNetwork(db, "net-2", hourAgo)).toBe(0);
+    expect((await waitlistCounts(db)).pro).toBe(3);
+  });
+
+  it("removes an address from every plan when it leaves", async () => {
+    const db = await testDb();
+    await addToWaitlist(db, { email: "ada@example.com", plan: "pro", source: "pricing" });
+    await addToWaitlist(db, { email: "ada@example.com", plan: "teams", source: "pricing" });
+    await addToWaitlist(db, { email: "bob@example.com", plan: "pro", source: "pricing" });
+    expect(await leaveWaitlist(db, "ADA@example.com")).toBe(2);
+    expect(await leaveWaitlist(db, "ada@example.com")).toBe(0);
+    expect((await waitlistEntries(db)).map((e) => e.email)).toEqual(["bob@example.com"]);
+    expect(await waitlistCounts(db)).toEqual({ pro: 1 });
+  });
+
+  it("lists one plan's members oldest first, with their quoted price", async () => {
+    const db = await testDb();
+    await addToWaitlist(db, {
+      email: "first@example.com",
+      plan: "pro",
+      source: "pricing",
+      priceVariant: "pro-intl-b-monthly",
+      priceCents: 2900,
+      period: "monthly",
+    });
+    await addToWaitlist(db, { email: "team@example.com", plan: "teams", source: "pricing" });
+    await addToWaitlist(db, { email: "second@example.com", plan: "pro", source: "daily-archive" });
+    const pro = await waitlistEntries(db, "pro");
+    expect(pro.map((e) => e.email)).toEqual(["first@example.com", "second@example.com"]);
+    expect(pro[0]).toMatchObject({ priceVariant: "pro-intl-b-monthly", priceCents: 2900 });
   });
 });
 
