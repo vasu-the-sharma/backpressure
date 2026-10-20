@@ -213,6 +213,10 @@ export interface WaitlistEntry {
   source: string;
   priceVariant?: string | null;
   priceCents?: number | null;
+  arm?: string | null;
+  segment?: string | null;
+  period?: string | null;
+  visitorId?: string | null;
 }
 
 /** Add someone to a plan's waitlist once; joining again is a no-op. */

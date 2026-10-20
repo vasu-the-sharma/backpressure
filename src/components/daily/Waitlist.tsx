@@ -1,5 +1,7 @@
 "use client";
 
+import { PriceSurvey } from "@/components/pricing/PriceSurvey";
+import type { Currency } from "@/content/pricing/plans";
 import { type WaitlistInput, joinWaitlist } from "@/server/actions";
 import { useState } from "react";
 
@@ -7,19 +9,23 @@ type State = "idle" | "saving" | "joined" | "already" | "invalid" | "failed";
 
 /**
  * Join a paid plan's waitlist: one click when signed in, an email otherwise.
- * `price` records what the person was shown, for the price test.
+ * When a Pro price is on screen, `period` records the billing the person
+ * chose (the server records the price itself), and `survey` then asks the
+ * four Van Westendorp questions in their currency.
  */
 export function Waitlist({
   source,
   signedIn,
   plan = "pro",
-  price,
+  period,
+  survey,
   cta = "Join the Pro waitlist",
 }: {
   source: string;
   signedIn: boolean;
   plan?: WaitlistInput["plan"];
-  price?: { variant: string; cents: number };
+  period?: WaitlistInput["period"];
+  survey?: { currency: Currency };
   cta?: string;
 }) {
   const [state, setState] = useState<State>("idle");
@@ -29,13 +35,7 @@ export function Waitlist({
     e.preventDefault();
     setState("saving");
     try {
-      const r = await joinWaitlist({
-        plan,
-        source,
-        email: signedIn ? undefined : email,
-        priceVariant: price?.variant,
-        priceCents: price?.cents,
-      });
+      const r = await joinWaitlist({ plan, source, period, email: signedIn ? undefined : email });
       setState(
         r.joined
           ? r.already
@@ -52,11 +52,14 @@ export function Waitlist({
 
   if (state === "joined" || state === "already") {
     return (
-      <p aria-live="polite" className="text-sm text-ok-fg">
-        {state === "joined"
-          ? "You're on the list. We'll email you when it opens."
-          : "You're already on the list."}
-      </p>
+      <div className="flex flex-col gap-4">
+        <p aria-live="polite" className="text-sm text-ok-fg">
+          {state === "joined"
+            ? "You're on the list. We'll email you when it opens."
+            : "You're already on the list."}
+        </p>
+        {survey && <PriceSurvey currency={survey.currency} />}
+      </div>
     );
   }
 
@@ -64,11 +67,11 @@ export function Waitlist({
     <form onSubmit={submit} className="flex flex-col gap-2 sm:flex-row">
       {!signedIn && (
         <>
-          <label htmlFor={`wl-${source}`} className="sr-only">
+          <label htmlFor={`wl-${source}-${plan}`} className="sr-only">
             Email
           </label>
           <input
-            id={`wl-${source}`}
+            id={`wl-${source}-${plan}`}
             type="email"
             required
             autoComplete="email"

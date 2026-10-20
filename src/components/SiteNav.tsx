@@ -14,6 +14,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 const ITEMS = [
   ...liveVerticals.map((v) => ({ key: v.slug, name: v.name, href: v.href })),
   { key: "daily", name: "Daily", href: "/daily" },
+  { key: "pricing", name: "Pricing", href: "/pricing" },
 ];
 
 export function SiteNav() {

@@ -115,6 +115,31 @@ every replica of every component counts as one. Par is the number to beat.
   Pro exists the page collects a waitlist (`waitlist` table, shown on `/admin`).
   Admins can replay any past day for practice.
 
+## Pricing and the live price test
+
+`/pricing` shows Free, Pro and Teams. Pro isn't on sale yet, so the page runs
+a price test instead of a checkout:
+
+- **Arms.** `src/middleware.ts` gives each visitor to `/pricing` and the daily
+  archive an anonymous id and one of three Pro prices at random (cookies
+  `bp_vid`, `bp_arm`, kept a year): $19 / $29 / $39 a month, or $99 / $149 / $199
+  a year. Visitors in India (Vercel's `x-vercel-ip-country`) see ₹599 / ₹999 /
+  ₹1,499 a month instead. The ladders live in `src/content/pricing/plans.ts`.
+- **Signal.** A page that showed a price logs one exposure per visitor per day
+  (`/api/pricing/exposure`, `price_exposure`). Joining the Pro waitlist records
+  the arm, region and billing period; the price comes from the server, never
+  the client.
+- **Survey.** After joining, people answer the four Van Westendorp questions
+  (`price_survey`). Contradictory answers are kept but set aside and counted.
+- **Results.** `/admin/pricing` shows the join rate per arm with a 95% Wilson
+  interval, the share choosing annual, a revenue index (price × join rate), and
+  the Van Westendorp price points with their curves
+  (`src/content/pricing/analysis.ts`). Read it with the notes on the page:
+  differences below ~300 visitors an arm are noise, and survey answers describe
+  perception, not purchases.
+- Prices are in the page's text and in Product/Offer JSON-LD (the middle arm),
+  so search engines and AI agents can read them.
+
 ## Design system
 
 The UI is a black canvas with near-black panels separated by hairlines rather
@@ -191,6 +216,7 @@ src/
     verticals.ts  The product areas; drives the nav and landing
     demo.ts       The landing comparison: graph, steady and rising load
     daily/        The daily puzzle: calendar, generator, share codes, streaks
+    pricing/      Plans, price-test arms, and the test's statistics
   lib/            Small pure helpers for the UI
   app/            Next.js App Router (SSG pages)
     page.tsx      Landing, with the live comparison
