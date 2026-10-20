@@ -11,12 +11,17 @@ import { useLayoutEffect, useRef, useState } from "react";
  * (on the shared spring), so moving between sections reads as one motion
  * from where you were to where you are.
  */
+const ITEMS = [
+  ...liveVerticals.map((v) => ({ key: v.slug, name: v.name, href: v.href })),
+  { key: "daily", name: "Daily", href: "/daily" },
+];
+
 export function SiteNav() {
   const pathname = usePathname();
   const navRef = useRef<HTMLElement>(null);
   const [pill, setPill] = useState<{ x: number; w: number; animate: boolean } | null>(null);
 
-  const activeIndex = liveVerticals.findIndex(
+  const activeIndex = ITEMS.findIndex(
     (v) => pathname === v.href || pathname.startsWith(`${v.href}/`),
   );
 
@@ -44,7 +49,11 @@ export function SiteNav() {
   }, [activeIndex]);
 
   return (
-    <nav ref={navRef} aria-label="Main" className="relative flex items-center gap-1">
+    <nav
+      ref={navRef}
+      aria-label="Main"
+      className="no-scrollbar relative -mx-1 flex min-w-0 items-center gap-1 overflow-x-auto px-1"
+    >
       {pill && (
         <span
           aria-hidden
@@ -58,14 +67,14 @@ export function SiteNav() {
           }}
         />
       )}
-      {liveVerticals.map((v, i) => {
+      {ITEMS.map((v, i) => {
         const active = i === activeIndex;
         return (
           <Link
-            key={v.slug}
+            key={v.key}
             href={v.href}
             aria-current={active ? "page" : undefined}
-            className={`focus-ring pressable relative rounded-md px-2.5 py-1.5 text-sm ${
+            className={`focus-ring pressable relative shrink-0 rounded-md px-2.5 py-1.5 text-sm ${
               active ? "font-medium text-fg" : "text-fg-2 hover:bg-fill/60 hover:text-fg"
             }`}
           >

@@ -84,16 +84,18 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
               <nav aria-label="Footer">
                 <p className="text-xs font-medium text-fg">Product</p>
                 <ul className="mt-3 space-y-2">
-                  {liveVerticals.map((v) => (
-                    <li key={v.slug}>
-                      <Link
-                        href={v.href}
-                        className="focus-ring rounded-sm text-xs text-fg-3 transition-colors duration-150 ease-out hover:text-fg"
-                      >
-                        {v.name}
-                      </Link>
-                    </li>
-                  ))}
+                  {[...liveVerticals, { slug: "daily", name: "Daily puzzle", href: "/daily" }].map(
+                    (v) => (
+                      <li key={v.slug}>
+                        <Link
+                          href={v.href}
+                          className="focus-ring rounded-sm text-xs text-fg-3 transition-colors duration-150 ease-out hover:text-fg"
+                        >
+                          {v.name}
+                        </Link>
+                      </li>
+                    ),
+                  )}
                 </ul>
               </nav>
             </div>

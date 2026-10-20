@@ -1,3 +1,8 @@
+/** Whether a database is connected (the waitlist needs only this; accounts need more). */
+export function isDbConfigured(): boolean {
+  return Boolean(process.env.DATABASE_URL);
+}
+
 /** Whether accounts can work in this environment: a database and Google sign-in are both set up. */
 export function isAuthConfigured(): boolean {
   return Boolean(

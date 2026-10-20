@@ -52,6 +52,12 @@ export interface Challenge {
   requiredKinds?: NodeKind[];
   /** Scenario-specific behaviour per kind (fan-out, pub-sub, bandwidth, limits). */
   kinds?: Partial<Record<NodeKind, KindOverride>>;
+  /**
+   * Ordering rules on the primary path: in each `[first, then]` pair, a
+   * request must pass a `first` component before it reaches any `then`
+   * (e.g. authenticate at the service before reading the cache).
+   */
+  before?: Array<[NodeKind, NodeKind]>;
   load: LoadProfile;
   slo: SloTarget;
   /** Optional nudge, revealed on demand. */

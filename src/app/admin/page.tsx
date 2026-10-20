@@ -2,8 +2,10 @@ import { Avatar } from "@/components/Avatar";
 import { SetupNotice } from "@/components/SetupNotice";
 import { ChevronRight } from "@/components/ui";
 import { getAllChallenges } from "@/content/challenges/registry";
+import { dailyNumberAt } from "@/content/daily/calendar";
 import { getDb } from "@/db";
 import { shortDate, timeAgo } from "@/lib/format";
+import { dailyAdminStats } from "@/server/daily";
 import { adminOverview, listUsersWithStats } from "@/server/progress";
 import { isAuthConfigured, requireAdmin } from "@/server/session";
 import type { Metadata } from "next";
@@ -21,7 +23,11 @@ export default async function AdminPage({
   await requireAdmin("/admin");
   const { q } = await searchParams;
   const db = getDb();
-  const [overview, people] = await Promise.all([adminOverview(db), listUsersWithStats(db, q)]);
+  const [overview, people, daily] = await Promise.all([
+    adminOverview(db),
+    listUsersWithStats(db, q),
+    dailyAdminStats(db, dailyNumberAt(Date.now())),
+  ]);
   const totalChallenges = getAllChallenges().length;
 
   const stats = [
@@ -55,6 +61,33 @@ export default async function AdminPage({
           </div>
         ))}
       </dl>
+
+      <section aria-labelledby="growth" className="panel mb-8 p-4">
+        <h2 id="growth" className="text-base font-medium text-fg">
+          Daily puzzle and waitlist
+        </h2>
+        <p className="mt-1 text-xs text-fg-3">
+          <span className="tnum text-fg">{daily.solvedToday}</span> solved today ·{" "}
+          <span className="tnum text-fg">{daily.waitlist}</span> on the waitlist
+        </p>
+        {daily.recent.length > 0 && (
+          <table className="mt-3 w-full text-xs">
+            <tbody className="divide-y divide-line">
+              {daily.recent.map((w) => (
+                <tr key={`${w.email}-${w.plan}`}>
+                  <td className="py-1.5 pr-3 text-fg">{w.email}</td>
+                  <td className="py-1.5 pr-3 text-fg-2">{w.plan}</td>
+                  <td className="py-1.5 pr-3 text-fg-3">
+                    {w.source}
+                    {w.priceVariant ? ` · ${w.priceVariant}` : ""}
+                  </td>
+                  <td className="py-1.5 text-right text-fg-3">{timeAgo(w.createdAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
 
       <search>
         <form className="mb-3 flex gap-2">

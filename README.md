@@ -89,6 +89,32 @@ downstream when a tier is scaled.
 - **Biome** for lint and format.
 - **Vercel** for hosting.
 
+## Daily puzzle
+
+`/daily` is one puzzle a day, the same for everyone on a UTC day (Daily #1 was
+19 October 2026). The goal: meet the targets with the **fewest servers**, where
+every replica of every component counts as one. Par is the number to beat.
+
+- **Generated, not authored.** `src/content/daily/generate.ts` builds each day
+  from its number: one of four templates (hot reads, fan-out writes, latency
+  budget, media launch) with seeded traffic, hit ratios and rules. It only
+  accepts traffic levels that sit clearly on one side of every replica boundary,
+  so par is exact arithmetic, not a search. `generate.test.ts` checks par
+  against the real engine (it passes, the obvious design fails, and one
+  replica fewer anywhere fails); `DAILY_HORIZON=365 npm test` checks a year ahead.
+- **Scored on the server.** Signed-in players' passing designs are re-graded
+  (`src/server/daily.ts`) and kept if better (fewer servers, then lower P99).
+  The leaderboard shows today's top ten, your rank, and how many servers people
+  needed. Names show as first name and initial.
+- **Works signed out.** Runs, best result and streak live on the device; signing
+  in moves the streak and leaderboard to the account.
+- **Shares without spoilers.** A Wordle-style grid of runs (latency, errors,
+  throughput per run) plus a link, `/daily/s/<code>`, whose preview image is the
+  result card (`src/lib/og.tsx`).
+- **Past puzzles** are listed at `/daily/archive` and are a Pro feature; until
+  Pro exists the page collects a waitlist (`waitlist` table, shown on `/admin`).
+  Admins can replay any past day for practice.
+
 ## Design system
 
 The UI is a black canvas with near-black panels separated by hairlines rather
@@ -164,6 +190,7 @@ src/
     quizzes/      Quiz modules
     verticals.ts  The product areas; drives the nav and landing
     demo.ts       The landing comparison: graph, steady and rising load
+    daily/        The daily puzzle: calendar, generator, share codes, streaks
   lib/            Small pure helpers for the UI
   app/            Next.js App Router (SSG pages)
     page.tsx      Landing, with the live comparison
