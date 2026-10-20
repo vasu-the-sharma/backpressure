@@ -1,311 +1,180 @@
 # Backpressure
 
-Interactive, honest models of how large-scale systems behave under load. Open a
-system, send it traffic, take a node down, scale it, and watch throughput, tail
-latency, and the bottleneck respond in real time.
+A lab for system design. Every architecture on the site is a running
+simulation: send it traffic, take a node down, add replicas, and watch latency,
+throughput and the bottleneck respond.
 
-> **Backpressure** is the term for a loaded system pushing back on its upstream
-> producers — the queue depth climbing until a stage can take no more. That is
-> exactly what these models let you watch happen, which is where the name comes
-> from.
+**Live:** https://backpressure.vercel.app
 
-## What it is
+The name is the thing you get to watch. When one stage of a system can't keep
+up, its queue fills and the pressure travels back to everything feeding it.
 
-Most system-design material is static: diagrams you read and architecture posts
-you nod along to. This is a model you can drive. Each system is a small running
-simulation, so the behavior you are taught about (a queue backing up, an outage
-cascading, a bottleneck moving when you add capacity) actually happens in front
-of you.
+## What's in it
 
-The numbers come from a simplified simulator, not production telemetry. They are
-directionally honest: utilization approaching capacity blows up tail latency, a
-downed node sheds load, and scaling one tier exposes the next. They are not a
-claim about any company's real latency or SLA. That honesty is deliberate. Fake
-precision is the fastest way to lose a technical reader.
+- **Systems.** Real architectures (Uber, WhatsApp, a URL shortener) to drive
+  under load.
+- **Playground.** Design a system on a canvas; the simulator grades it against
+  an SLO.
+- **Quiz.** Short drills on load, caching, fan-out and bottlenecks.
+- **Daily.** One puzzle a day: meet the targets with the fewest servers. Par,
+  a leaderboard, streaks and a shareable result.
+- **Pricing.** Free, Pro and Teams. Pro isn't on sale yet, so the page runs a
+  live price test.
 
-## Why it is built this way
+## How the simulator works
 
-The architecture is the point of this project, so the decisions are explicit.
+`src/sim` is a deterministic, tick-based model of a request graph. It has no
+framework imports and its own tests.
 
-**Content is static, the simulator is client-side.** The catalog (systems,
-their graphs, their write-ups) is read-mostly and authored in the repo, so it is
-statically generated at build time. Pages serve from the edge, render instantly,
-and are fully indexable. The simulator is pure computation that belongs in the
-browser; a server would add latency and nothing else. Accounts are the first
-backend surface (see "Accounts and roles").
+- Each node is a bounded queue that serves `capacityPerTick × replicas`
+  requests a tick. Whatever overflows the queue is dropped and counted as an
+  error.
+- Arrivals are Poisson around the offered rate, so bursts build queues even
+  below capacity. That is why tail latency climbs as utilization nears 1.
+- A request follows each node's first outgoing edge. A cache or CDN hit ends
+  it there, `fanout` multiplies it downstream, a `publish` node delivers it to
+  every edge, and `bandwidthPerTick` makes a node limited by bytes, not request
+  count.
+- Latency is the ticks a request spent in the system plus each node's
+  processing time, so congestion shows up directly as latency.
+- Randomness comes from a seeded RNG and the engine never reads the clock. The
+  same graph, load and seed always produce the same run. Server-side grading,
+  the leaderboard and par all rely on that.
 
-**Content lives in the repo, not a database.** Each system is a typed module
-validated by a schema at build time. That buys version history, pull-request
-review, and compile-time safety on every content change, and it means a bad
-entry fails `next build` instead of a user's page load. A database would add a
-query per page and an admin UI to edit what a text file already does better. The
-database arrives when the data is genuinely dynamic (accounts, billing,
-progress), and that data is relational, so it will be Postgres, not a document
-store.
+The shapes are real: saturation, cascading outages, a bottleneck that moves
+when you scale. The exact milliseconds are a model's, not anyone's production
+telemetry.
 
-**The simulation engine is a pure, framework-agnostic module.** It imports
-nothing from React or Next and is tested in isolation. The UI is a thin layer
-over it. This keeps the interesting logic honest and portable, and it is why the
-engine has unit tests while the UI does not yet need them.
+## Architecture
 
-**Seams are left for the paid surface, but not built early.** Interview grading
-(an LLM call that cannot expose keys to the browser) and accounts/billing are
-real backend needs. They are deferred, not designed out: Next route handlers
-cover the first dynamic endpoints, and a separate service (FastAPI, which suits
-the Python/AI work) splits off when that surface is real.
-
-## The simulation engine
-
-The engine (`src/sim`) is a discrete-time, tick-based model of a request graph.
-
-- Each node is a bounded queue with a per-tick service capacity that scales with
-  its replica count.
-- Requests are admitted at the entry node following a seeded Poisson process, so
-  bursts build queues even below nominal capacity. That burstiness is why tail
-  latency grows as utilization approaches one, not only past it.
-- Each tick, every node serves what it can, advances requests to their next hop
-  or completes them, and drops whatever overflows its bounded queue (counted as
-  errors). A cache node resolves a seeded hit or miss, modelling the cache-aside
-  read path.
-- End-to-end latency is the ticks a request spent in the system plus per-node
-  processing, so congestion shows up directly as latency.
-
-Everything is driven by a seeded RNG with no wall-clock reads, so a run is
-deterministic: the same graph, config, and seed reproduce exactly. That is what
-makes a future "share this failing scenario as a URL" feature possible.
-
-The test suite (`src/sim/engine.test.ts`) pins the behaviors the model exists to
-demonstrate: deterministic replay, tail latency climbing as load approaches and
-exceeds capacity, an outage cascading into shed load, and the bottleneck moving
-downstream when a tier is scaled.
-
-## Tech stack
-
-- **Next.js (App Router) + React + TypeScript** in strict mode. Content pages
-  are statically generated; the interactive pieces are client islands.
-- **Zod** validates content at build time.
-- **Vitest** for the engine.
-- **Tailwind CSS** for styling.
-- **Biome** for lint and format.
-- **Vercel** for hosting.
+- **Content is code.** Systems, challenges and quizzes are typed modules
+  validated with Zod at build time, so a bad entry fails `next build` instead
+  of a page load. Most pages are statically generated.
+- **The simulator runs in the browser.** It's pure computation, and a server
+  would only add latency.
+- **The server handles what the browser can't be trusted with.** Playground
+  runs, quiz answers and daily designs from signed-in players are re-graded on
+  the server with the same engine before anything is stored (`src/server`).
+  The browser never gets to say "I passed".
+- **Accounts** use Auth.js v5 (Google) with database sessions and Drizzle ORM on
+  Postgres (Neon). Roles are `client` and `admin`; the emails in `ADMIN_EMAILS`
+  become admins when they sign in.
+- **No account required.** With no database or sign-in configured, the site
+  still works fully. Accounts, the leaderboard, the waitlist and the price test
+  switch on once they are configured.
 
 ## Daily puzzle
 
-`/daily` is one puzzle a day, the same for everyone on a UTC day (Daily #1 was
-19 October 2026). The goal: meet the targets with the **fewest servers**, where
-every replica of every component counts as one. Par is the number to beat.
+Puzzle *n* is a pure function of *n* (`src/content/daily/generate.ts`). Each day
+picks one of four templates (hot reads, fan-out writes, latency budget, media
+launch) and seeds its traffic, hit ratios and rules. Daily #1 was 19 October
+2026, and the puzzle changes at midnight UTC.
 
-- **Generated, not authored.** `src/content/daily/generate.ts` builds each day
-  from its number: one of four templates (hot reads, fan-out writes, latency
-  budget, media launch) with seeded traffic, hit ratios and rules. It only
-  accepts traffic levels that sit clearly on one side of every replica boundary,
-  so par is exact arithmetic, not a search. `generate.test.ts` checks par
-  against the real engine (it passes, the obvious design fails, and one
-  replica fewer anywhere fails); `DAILY_HORIZON=365 npm test` checks a year ahead.
-- **Scored on the server.** Signed-in players' passing designs are re-graded
-  (`src/server/daily.ts`) and kept if better (fewer servers, then lower P99).
-  The leaderboard shows today's top ten, your rank, and how many servers people
-  needed. Names show as first name and initial.
-- **Works signed out.** Runs, best result and streak live on the device; signing
-  in moves the streak and leaderboard to the account.
-- **Shares without spoilers.** A Wordle-style grid of runs (latency, errors,
-  throughput per run) plus a link, `/daily/s/<code>`, whose preview image is the
-  result card (`src/lib/og.tsx`).
-- **Past puzzles** are listed at `/daily/archive` and are a Pro feature; until
-  Pro exists the page collects a waitlist (`waitlist` table, shown on `/admin`).
-  Admins can replay any past day for practice.
+The engine's limit is sharp: a component keeps up at 99% utilization and falls
+behind at 101%. The generator only accepts traffic levels that sit clearly on
+one side of every replica boundary, so par is exact arithmetic, not a search.
+Tests check it against the real engine. The par design must pass, the obvious
+design must fail, and removing one replica anywhere must fail.
 
-## Pricing and the live price test
+Passing designs from signed-in players are re-graded and kept if they beat the
+player's best (fewer servers, then lower p99). Signed-out players keep their
+runs and streak in localStorage. A result shares as a spoiler-free grid plus a
+`/daily/s/<code>` link with its own preview image. Past puzzles are a Pro
+feature.
 
-`/pricing` shows Free, Pro and Teams. Pro isn't on sale yet, so the page runs
-a price test instead of a checkout:
+## Price test
 
-- **Arms.** `src/middleware.ts` gives each visitor to `/pricing` and the daily
-  archive an anonymous id and one of three Pro prices at random (cookies
-  `bp_vid`, `bp_arm`, kept a year): $19 / $29 / $39 a month, or $99 / $149 / $199
-  a year. Visitors in India (Vercel's `x-vercel-ip-country`) see ₹599 / ₹999 /
-  ₹1,499 a month instead. The ladders live in `src/content/pricing/plans.ts`.
-- **Signal.** A page that showed a price logs one exposure per visitor per day
-  (`/api/pricing/exposure`, `price_exposure`). Joining the Pro waitlist records
-  the arm, region and billing period; the price comes from the server, never
-  the client.
-- **Survey.** After joining, people answer the four Van Westendorp questions
-  (`price_survey`). Contradictory answers are kept but set aside and counted.
-- **Results.** `/admin/pricing` shows the join rate per arm with a 95% Wilson
-  interval, the share choosing annual, a revenue index (price × join rate), and
-  the Van Westendorp price points with their curves
-  (`src/content/pricing/analysis.ts`). Read it with the notes on the page:
-  differences below ~300 visitors an arm are noise, and survey answers describe
-  perception, not purchases.
-- Prices are in the page's text and in Product/Offer JSON-LD (the middle arm),
-  so search engines and AI agents can read them.
+Pro isn't for sale yet, so `/pricing` measures demand instead of taking
+payment:
 
-## Design system
+1. Middleware gives each visitor an anonymous id and one of three Pro prices
+   at random, kept for a year: $19, $29 or $39 a month, or ₹599, ₹999 or
+   ₹1,499 in India (from Vercel's country header).
+2. Each page that shows a price logs one exposure per visitor per day.
+3. Joining the waitlist records the price arm and billing period. The price is
+   looked up on the server.
+4. People who join answer the four Van Westendorp questions.
 
-The UI is a black canvas with near-black panels separated by hairlines rather
-than shadows. White carries primary actions and one blue accent marks focus and
-selection. Beyond that, color is reserved for system state, and only three exist:
-green (headroom), amber (the bottleneck / stress), red (saturation, drops, an
-outage). Color is never the only signal; every state also has a label or number.
+`/admin/pricing` reports:
+- the join rate per arm, with a 95% Wilson interval;
+- a revenue index (price × join rate);
+- the Van Westendorp price points.
 
-- **Tokens** live in `src/app/globals.css` (`@theme`): surfaces `canvas` →
-  `surface` → `surface-2` → `fill`, hairlines `line` / `line-strong`, text
-  `fg` → `fg-4`, and `ok` / `warn` / `bad` with text-safe `*-fg` tints.
-- **Type**: Inter (optical sizing) for text, JetBrains Mono for every number
-  (`.tnum`). Index pages open with large display type (`.display`); inside the
-  app the scale is fixed: title `text-2xl`, section `text-base font-medium`,
-  body `text-sm`, meta `text-xs`.
-- **Primitives**: `.panel`, `.btn` (+ `-primary` / `-secondary` / `-ghost`, sizes),
-  `.range`, `.kbd`, `.skeleton`, `.focus-ring`; layout pieces in
-  `src/components/ui.tsx`. Radii are 6px (controls) and 8px (panels).
-- **Calls to action** on the landing page use `CtaLink` (`.cta`): a 44px
-  touch target with the product's icon, lit from above. The white primary
-  glows; secondaries catch a light that follows the pointer, or lands under a
-  finger on press; the chevron grows into an arrow on hover.
-- **The landing comparison** (`CompareDemo`) runs one read path twice on the
-  real engine: steady traffic on the left; on the right, traffic that climbs
-  past the database's capacity until it queues, drops requests and recovers
-  (pinned by `src/content/demo.test.ts`). Requests are drawn as moving light
-  (`FlowCanvas`), and visitors can scale the struggling database to rescue it.
-  Each half explains itself: a plain-language sentence with live numbers, a
-  five-stage track (healthy → recovering), callouts on the queue, and a shared
-  legend for the marks.
-  Pointer-lit surfaces (`data-light` + `PointerLight`) and the small CSS loops
-  in `LandingVisuals` hold still under reduced motion.
-- **Logo.** The "queue depth" mark: four queues rising toward capacity, the
-  last spilling over in amber. Its geometry lives once in `src/lib/brand.ts`
-  and drives the header logo, favicon, app icons and the link-preview image
-  (`src/app/opengraph-image.tsx`). Wordmark: Inter SemiBold at 0.46× the mark,
-  −2.5% tracking. Ready-made files (SVG with outlined text, PNG) are in
-  `public/brand/`; `scripts/brand/generate.swift` regenerates them.
-- **Motion and feel** follow Apple's fluid-interface rules
-  (`src/lib/motion`, tested): controls give way on press, not on release;
-  motion uses springs described by damping and response (critically damped by
-  default, bounce only after a flick), solved in closed form so they can be
-  caught and re-targeted mid-flight without losing velocity. CSS transitions
-  use the same spring, sampled into `linear()` (`--ease-spring`). On phones
-  the Playground brief is a bottom sheet that tracks the finger 1:1,
-  rubber-bands past its ends and projects flick momentum to choose where it
-  rests.
-- **Materials.** The header, popovers and the sheet are translucent layers
-  (`.material-chrome`, `.material-popover`, `.material-sheet`); bigger surfaces
-  are thicker. The header shows its edge only when content scrolls under it.
-- **Accessibility modes.** Reduced motion swaps movement for short
-  cross-fades and stops loops; reduced transparency makes materials solid;
-  increased contrast strengthens hairlines and secondary text.
-- **Type** tracking and leading are set per size in `@theme`: small text
-  opens up slightly, large text tightens.
+## Stack
 
-## Project structure
+Next.js 15 (App Router), React 19, TypeScript (strict), Tailwind CSS 4, React
+Flow, Auth.js v5, Drizzle ORM, Neon Postgres, Zod, Vitest with PGlite, Biome,
+hosted on Vercel.
 
-```
-src/
-  sim/            Pure simulation engine (no framework imports)
-    types.ts      Graph, node, config, and state types
-    rng.ts        Seeded PRNG
-    metrics.ts    Percentiles and the rolling metric window
-    engine.ts     The tick loop
-    score.ts      Run a design to steady state and grade it against an SLO
-    engine.test.ts
-  content/        Content as typed, validated data
-    schema.ts     Zod schema and the System type
-    registry.ts   Loads and validates all systems at build time
-    systems/      One module per system
-    challenges/   Playground scenarios (load profile + SLO)
-    quizzes/      Quiz modules
-    verticals.ts  The product areas; drives the nav and landing
-    demo.ts       The landing comparison: graph, steady and rising load
-    daily/        The daily puzzle: calendar, generator, share codes, streaks
-    pricing/      Plans, price-test arms, and the test's statistics
-  lib/            Small pure helpers for the UI
-  app/            Next.js App Router (SSG pages)
-    page.tsx      Landing, with the live comparison
-    systems/      Catalog and /systems/[slug] (the simulator)
-    playground/   Challenges and /playground/[slug] (the design canvas)
-    quiz/         Quizzes and /quiz/[slug]
-  components/
-    Simulator.tsx         The live model on each system page
-    CompareDemo.tsx       The landing page's side-by-side live comparison
-    FlowCanvas.tsx        Requests drawn as moving light (canvas)
-    PlaygroundCanvas.tsx  The design canvas (React Flow)
-    QuizRunner.tsx        The quiz player
-    ui.tsx                Layout primitives that encode the type scale
-```
+## Running it
 
-## Getting started
+Node 20 or later.
 
 ```bash
 npm install
-npm run dev        # http://localhost:3000
-npm test           # engine unit tests
-npm run typecheck  # tsc --noEmit
-npm run build      # production build (static generation)
+npm run dev          # http://localhost:3000
+npm test             # engine, content calibration, server logic on in-memory Postgres
+npm run typecheck
+npm run lint
+npm run build        # runs pending DB migrations first when DATABASE_URL is set
 ```
 
-Node 20 or newer (see `.nvmrc`).
+`DAILY_HORIZON=365 npm test` also verifies a year of daily puzzles, at about a
+second per day.
 
-## Roadmap
+### Accounts (optional)
 
-- More systems. The schema is designed so adding one is a data task, not a code
-  task. Only the graph and a blurb are required; the write-up fills in over time.
-- A rendered node-graph with animated request particles over the current engine.
-- Auto-layout for diagrams so a system is authored as nodes and edges only.
-- Interview mode: explain a system and get graded against a rubric derived from
-  its schema. First real backend surface.
-- Accounts, saved progress, and billing on Postgres, when there is something to
-  bill for.
+| Variable | Purpose |
+|---|---|
+| `DATABASE_URL` | Postgres. On Vercel, the Neon integration sets it. |
+| `AUTH_SECRET` | Signs sessions. Generate one with `npx auth secret`. |
+| `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` | Google OAuth client, with redirect URI `https://<domain>/api/auth/callback/google` (and the `localhost:3000` equivalent). |
+| `ADMIN_EMAILS` | Comma-separated. These people become admins when they sign in. |
 
-## Accounts and roles
+**Local setup.** Run `vercel env pull .env.local`, then `npm run db:migrate`.
 
-Signing in is optional: every page works without an account. Signing in (Google)
-saves a person's Playground runs and quiz results so they, and admins, can see
-their progress.
+**Schema changes.** Edit `src/db/schema.ts`, then run `npm run db:generate`.
+Migrations in `drizzle/` apply automatically before every build.
 
-- **Roles.** Everyone starts as a `client`. Emails in `ADMIN_EMAILS` become
-  `admin` when they sign in; after that, admins promote or demote others from
-  `/admin/users/<id>`. The last admin can't be demoted.
-- **Pages.** `/signin`, `/account` (your progress), `/admin` (every client with
-  last seen, runs, solves and best quiz score) and `/admin/users/<id>`.
-  Non-admins get a 404 on admin pages.
-- **Honest records.** The browser never reports "I passed". It sends the design
-  or the chosen answers, and the server re-grades them with the same engine and
-  content (`src/server/grade.ts`) before storing anything.
-- **Stack.** Auth.js v5 with database sessions, Drizzle ORM, Postgres on Neon.
-  Schema in `src/db/schema.ts`; migrations in `drizzle/` are generated with
-  `npm run db:generate` and applied automatically before every build
-  (`scripts/migrate.mjs`, skipped when `DATABASE_URL` is unset). Server logic is
-  tested against a real in-memory Postgres (PGlite).
-- **Static pages stay static.** The header reads the session in the browser;
-  only `/signin`, `/account` and `/admin` render per request.
+**Previews.** Turn on Neon's database branch per preview deployment, so pull
+request previews never migrate production.
 
-### Setting it up
+## Project layout
 
-1. **Database.** In the Vercel project: Storage → Create Database → Neon →
-   connect it to all environments. This sets `DATABASE_URL`. Turn on
-   "create a branch for each preview deployment" so PR previews never migrate
-   the production database.
-2. **Google sign-in.** Google Cloud Console → APIs & Services → Credentials →
-   Create OAuth client ID (Web application). Add the redirect URIs
-   `http://localhost:3000/api/auth/callback/google` and
-   `https://<your-domain>/api/auth/callback/google`.
-3. **Env vars** in Vercel (Settings → Environment Variables): `AUTH_SECRET`
-   (`npx auth secret`), `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET`, `ADMIN_EMAILS`.
-4. **Local.** `vercel env pull .env.local`, then `npm run db:migrate` and
-   `npm run dev`. See `.env.example`.
+```
+src/
+  sim/         the engine: types, seeded RNG, metrics, tick loop, SLO scoring
+  content/     systems, challenges, quizzes, daily puzzle, pricing (typed data and tests)
+  server/      grading, progress, daily results, the price test
+  db/          Drizzle schema (migrations live in /drizzle)
+  app/         routes
+  components/  UI, including PlaygroundCanvas, Simulator, CompareDemo and DailyGame
+  lib/         motion springs, brand geometry, formatting, link-preview images
+```
 
-## Adding a challenge
+## Adding content
 
-Create `src/content/challenges/<slug>.ts`, export a `Challenge`, and register it
-in `src/content/challenges/registry.ts`. Scenario behaviour goes in `kinds`
-(per node kind: `fanout`, `publish` + `minSubscribers` for a pub-sub topic,
-`bandwidthPerTick` with `load.requestBytes` for bandwidth-bound nodes,
-`cacheHitRatio`, `maxReplicas`). Every challenge must ship a `calibration`
-pair — the obvious design that should fail and the reference that should pass —
-and `calibration.test.ts` runs both through the same builder the canvas uses,
-so a challenge that stops teaching its lesson fails CI.
+**A system.** Add `src/content/systems/<slug>.ts`, export a `SystemInput`, and
+register it in `src/content/registry.ts`. The page, its metadata and its
+simulator all come from that one module.
 
-## Adding a system
+**A challenge.** Add `src/content/challenges/<slug>.ts` and register it.
+- Scenario rules go in `kinds`: fan-out, pub-sub topics, bandwidth limits, hit
+  ratios and replica caps.
+- Ordering rules go in `before`, for example "the service comes before the
+  cache".
+- Every challenge ships a `calibration` pair: a design that should fail and one
+  that should pass. CI runs both, so a challenge that stops teaching its lesson
+  breaks the build.
 
-Create `src/content/systems/<slug>.ts`, export a `SystemInput`, and register it
-in `src/content/registry.ts`. The schema validates it at build time, and the
-page, metadata, and simulator are generated from that one module.
+## Design
+
+- **Look.** A black canvas, hairlines instead of shadows, white for primary
+  actions, and one blue accent for focus.
+- **State colours.** Green, amber and red only ever mean system state, and
+  every state also carries a label or number.
+- **Motion.** Uses critically damped springs (`src/lib/motion`), sampled into
+  CSS as `--ease-spring`.
+- **Accessibility.** Reduced motion, reduced transparency and increased
+  contrast are all respected.
+- **Tokens** live in `src/app/globals.css`.
