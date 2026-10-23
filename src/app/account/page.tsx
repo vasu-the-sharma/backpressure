@@ -27,6 +27,9 @@ export default async function AccountPage() {
             <h1 className="text-2xl font-semibold tracking-tight text-fg">Your progress</h1>
             <p className="mt-1 truncate text-xs text-fg-3">
               {user.email} · member since {shortDate(user.createdAt)}
+              {user.role !== "admin" && user.proUntil && user.proUntil > new Date() && (
+                <> · Pro until {shortDate(user.proUntil)}</>
+              )}
             </p>
           </div>
         </div>

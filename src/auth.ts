@@ -1,5 +1,6 @@
 import { getDb } from "@/db";
 import { accounts, sessions, users, verificationTokens } from "@/db/schema";
+import { hasPro } from "@/server/pro";
 import { promoteListedAdmin, touchLastSeen } from "@/server/users";
 import { DrizzleAdapter } from "@auth/drizzle-adapter";
 import NextAuth from "next-auth";
@@ -30,6 +31,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
       async session({ session, user }) {
         session.user.id = user.id;
         session.user.role = user.role ?? "client";
+        session.user.pro = hasPro(user);
         await touchLastSeen(db, user.id, user.lastSeenAt ?? null);
         return session;
       },

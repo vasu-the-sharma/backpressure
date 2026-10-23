@@ -65,6 +65,8 @@ export default async function PricingPage() {
   const price = PRO_PRICES[visitor.segment][visitor.arm];
   const session = isAuthConfigured() ? await auth() : null;
   const signedIn = Boolean(session?.user?.id);
+  // People who already have Pro see that instead of the waitlist, and aren't counted in the test.
+  const pro = Boolean(session?.user?.pro);
   const waitlistOpen = isDbConfigured();
 
   return (
@@ -74,7 +76,7 @@ export default async function PricingPage() {
         // biome-ignore lint/security/noDangerouslySetInnerHtml: static JSON-LD built from our own constants, with "<" escaped
         dangerouslySetInnerHTML={{ __html: jsonLd() }}
       />
-      {visitor.randomized && <PriceExposure page="pricing" />}
+      {visitor.randomized && !pro && <PriceExposure page="pricing" />}
 
       <header className="mb-10 flex flex-col items-center pt-6 text-center sm:pt-10">
         <h1 className="display rise-in text-4xl text-fg sm:text-6xl">Pricing</h1>
@@ -122,6 +124,7 @@ export default async function PricingPage() {
             signedIn={signedIn}
             waitlistOpen={waitlistOpen}
             survey={visitor.randomized}
+            pro={pro}
           />
         </Plan>
 

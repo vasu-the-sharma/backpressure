@@ -35,6 +35,10 @@ export const users = pgTable("user", {
   role: roleEnum("role").notNull().default("client"),
   createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
   lastSeenAt: timestamp("last_seen_at", { mode: "date" }),
+  /** Pro access runs until this moment (an admin's grant, later a paid period); null for none. */
+  proUntil: timestamp("pro_until", { mode: "date" }),
+  /** Where the current Pro access came from: "admin" for a grant, later the payment provider. */
+  proSource: text("pro_source"),
 });
 
 export const accounts = pgTable(

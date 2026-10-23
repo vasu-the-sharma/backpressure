@@ -1,4 +1,5 @@
 import { Avatar } from "@/components/Avatar";
+import { ProForm } from "@/components/ProForm";
 import { ProgressTables } from "@/components/ProgressTables";
 import { RoleForm } from "@/components/RoleForm";
 import { SetupNotice } from "@/components/SetupNotice";
@@ -42,7 +43,10 @@ export default async function AdminUserPage({ params }: { params: Promise<{ id: 
             </p>
           </div>
         </div>
-        <RoleForm userId={user.id} role={user.role} isSelf={user.id === session.user.id} />
+        <div className="flex flex-col items-start gap-4 sm:items-end">
+          <RoleForm userId={user.id} role={user.role} isSelf={user.id === session.user.id} />
+          <ProForm userId={user.id} isAdmin={user.role === "admin"} proUntil={user.proUntil} />
+        </div>
       </header>
       <ProgressTables progress={progress} />
     </div>

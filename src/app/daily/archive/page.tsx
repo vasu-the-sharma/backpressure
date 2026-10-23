@@ -16,13 +16,13 @@ import Link from "next/link";
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "Past daily puzzles" };
 
-/** Past puzzles, newest first. Playing them is a Pro feature; for now, a waitlist. */
+/** Past puzzles, newest first. Pro members can play them; everyone else sees the price and the waitlist. */
 export default async function DailyArchivePage() {
   const today = dailyNumberAt(Date.now());
   const days = Array.from({ length: Math.max(0, today - 1) }, (_, i) => today - 1 - i);
   const accounts = isAuthConfigured();
   const session = accounts ? await auth() : null;
-  const admin = session?.user?.role === "admin";
+  const pro = Boolean(session?.user?.pro);
   const solvers = accounts && days.length ? await solversByDay(getDb(), 1, today - 1) : null;
   const visitor = await priceVisitor();
   const price = PRO_PRICES[visitor.segment][visitor.arm];
@@ -35,39 +35,47 @@ export default async function DailyArchivePage() {
         <p className="mt-1 text-xs text-fg-3">Every daily so far, newest first.</p>
       </header>
 
-      {visitor.consent === "ask" && <ConsentBanner />}
+      {pro ? (
+        <p className="mb-8 text-sm text-fg-2">
+          You have Pro: play any past puzzle as practice, against its par.
+        </p>
+      ) : (
+        <>
+          {visitor.consent === "ask" && <ConsentBanner />}
 
-      <section className="panel mb-8 flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
-        {visitor.randomized && <PriceExposure page="daily-archive" />}
-        <div className="max-w-xl">
-          <p className="text-base font-medium text-fg">
-            Past puzzles are part of Backpressure Pro.
-          </p>
-          <p className="mt-1 text-sm text-fg-2">
-            Play any day you missed, against its par and its leaderboard. Pro is coming soon at{" "}
-            <span className="tnum text-fg">{formatMoney(price.monthly, price.currency)}</span> a
-            month.{" "}
-            <Link
-              href="/pricing"
-              className="text-fg underline decoration-line-strong underline-offset-2"
-            >
-              See plans
-            </Link>
-          </p>
-        </div>
-        <div className="sm:w-[22rem] sm:shrink-0">
-          {isDbConfigured() ? (
-            <Waitlist
-              source="daily-archive"
-              signedIn={Boolean(session?.user?.id)}
-              period="monthly"
-              survey={visitor.randomized ? { currency: price.currency } : undefined}
-            />
-          ) : (
-            <p className="text-sm text-fg-3">The waitlist opens soon.</p>
-          )}
-        </div>
-      </section>
+          <section className="panel mb-8 flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+            {visitor.randomized && <PriceExposure page="daily-archive" />}
+            <div className="max-w-xl">
+              <p className="text-base font-medium text-fg">
+                Past puzzles are part of Backpressure Pro.
+              </p>
+              <p className="mt-1 text-sm text-fg-2">
+                Play any day you missed, against its par and its leaderboard. Pro is coming soon at{" "}
+                <span className="tnum text-fg">{formatMoney(price.monthly, price.currency)}</span> a
+                month.{" "}
+                <Link
+                  href="/pricing"
+                  className="text-fg underline decoration-line-strong underline-offset-2"
+                >
+                  See plans
+                </Link>
+              </p>
+            </div>
+            <div className="sm:w-[22rem] sm:shrink-0">
+              {isDbConfigured() ? (
+                <Waitlist
+                  source="daily-archive"
+                  signedIn={Boolean(session?.user?.id)}
+                  period="monthly"
+                  survey={visitor.randomized ? { currency: price.currency } : undefined}
+                />
+              ) : (
+                <p className="text-sm text-fg-3">The waitlist opens soon.</p>
+              )}
+            </div>
+          </section>
+        </>
+      )}
 
       {days.length === 0 ? (
         <p className="text-sm text-fg-2">
@@ -106,7 +114,7 @@ export default async function DailyArchivePage() {
             );
             return (
               <li key={n}>
-                {admin ? (
+                {pro ? (
                   <Link
                     href={`/daily/${n}`}
                     className="focus-ring pressable pressable-subtle flex items-center gap-4 px-4 py-3 hover:bg-surface-2"

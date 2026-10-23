@@ -29,6 +29,13 @@
       "when": 1792504626705,
       "tag": "0003_launch_readiness",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792748592172,
+      "tag": "0004_pro_access",
+      "breakpoints": true
     }
   ]
 }
