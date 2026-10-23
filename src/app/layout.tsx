@@ -87,6 +87,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
                   {[
                     ...liveVerticals,
                     { slug: "daily", name: "Daily puzzle", href: "/daily" },
+                    { slug: "capacity", name: "Capacity planner", href: "/capacity" },
                     { slug: "pricing", name: "Pricing", href: "/pricing" },
                   ].map((v) => (
                     <li key={v.slug}>
