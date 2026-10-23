@@ -18,6 +18,7 @@ export function sitemapPaths(): string[] {
     ...getAllQuizSlugs().map((s) => `/quiz/${s}`),
     "/daily",
     "/daily/archive",
+    "/capacity",
     "/pricing",
     "/privacy",
     "/terms",

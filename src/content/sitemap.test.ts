@@ -6,7 +6,9 @@ describe("sitemap", () => {
   const paths = sitemapPaths();
 
   it("lists the public pages and every system", () => {
-    for (const p of ["/", "/pricing", "/daily", "/privacy", "/terms"]) expect(paths).toContain(p);
+    for (const p of ["/", "/pricing", "/daily", "/capacity", "/privacy", "/terms"]) {
+      expect(paths).toContain(p);
+    }
     for (const s of getAllSlugs()) expect(paths).toContain(`/systems/${s}`);
   });
 
