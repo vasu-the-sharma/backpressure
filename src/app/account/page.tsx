@@ -1,7 +1,9 @@
 import { signOut } from "@/auth";
+import { AccountData } from "@/components/AccountData";
 import { Avatar } from "@/components/Avatar";
 import { ProgressTables } from "@/components/ProgressTables";
 import { SetupNotice } from "@/components/SetupNotice";
+import { SectionHeader } from "@/components/ui";
 import { getDb } from "@/db";
 import { shortDate } from "@/lib/format";
 import { userProgress } from "@/server/progress";
@@ -42,6 +44,10 @@ export default async function AccountPage() {
         </form>
       </header>
       <ProgressTables progress={progress} />
+      <section aria-labelledby="data" className="mt-10">
+        <SectionHeader id="data" title="Your data" />
+        <AccountData />
+      </section>
     </div>
   );
 }

@@ -148,7 +148,7 @@ export default function PrivacyPage() {
 
       <LegalSection id="retention" title="How long we keep it">
         <Bullets>
-          <li>Your account and progress: until you ask us to delete them.</li>
+          <li>Your account and progress: until you delete your account.</li>
           <li>
             Waitlist entries: until you leave, or a year after the plan opens (long enough to honour
             the price you were shown).
@@ -167,9 +167,10 @@ export default function PrivacyPage() {
           </li>
           <li>Clear your local progress by clearing this site&apos;s data in your browser.</li>
           <li>
-            Ask us for a copy of your data, to correct it, or to delete your account and everything
-            linked to it. Contact us below.
+            Download a copy of your data, or delete your account and everything linked to it, from{" "}
+            <A href="/account">your account page</A>.
           </li>
+          <li>Ask us to correct anything, or for help with any of this. Contact us below.</li>
         </Bullets>
         <p>
           If you&apos;re in the EU, the EEA or the UK, you can also complain to your data-protection
