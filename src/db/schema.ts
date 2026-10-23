@@ -158,9 +158,14 @@ export const waitlist = pgTable(
     segment: text("segment"),
     period: text("period"),
     visitorId: text("visitor_id"),
+    /** Daily-changing fingerprint of a signed-out sign-up's network, for the hourly cap; erased after 24 hours. Never the IP. */
+    ipHash: text("ip_hash"),
     createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
   },
-  (t) => [uniqueIndex("waitlist_email_plan_idx").on(t.email, t.plan)],
+  (t) => [
+    uniqueIndex("waitlist_email_plan_idx").on(t.email, t.plan),
+    index("waitlist_ip_hash_idx").on(t.ipHash, t.createdAt),
+  ],
 );
 
 /**
@@ -184,17 +189,24 @@ export const priceExposures = pgTable(
   ],
 );
 
-/** Van Westendorp answers (monthly price, in the segment's currency), kept even when inconsistent. */
-export const priceSurveys = pgTable("price_survey", {
-  id: text("id")
-    .primaryKey()
-    .$defaultFn(() => crypto.randomUUID()),
-  visitorId: text("visitor_id"),
-  segment: text("segment").notNull(),
-  currency: text("currency").notNull(),
-  tooCheap: integer("too_cheap").notNull(),
-  cheap: integer("cheap").notNull(),
-  expensive: integer("expensive").notNull(),
-  tooExpensive: integer("too_expensive").notNull(),
-  createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
-});
+/**
+ * Van Westendorp answers (monthly price, in the segment's currency), kept even
+ * when inconsistent. One answer per visitor.
+ */
+export const priceSurveys = pgTable(
+  "price_survey",
+  {
+    id: text("id")
+      .primaryKey()
+      .$defaultFn(() => crypto.randomUUID()),
+    visitorId: text("visitor_id"),
+    segment: text("segment").notNull(),
+    currency: text("currency").notNull(),
+    tooCheap: integer("too_cheap").notNull(),
+    cheap: integer("cheap").notNull(),
+    expensive: integer("expensive").notNull(),
+    tooExpensive: integer("too_expensive").notNull(),
+    createdAt: timestamp("created_at", { mode: "date" }).notNull().defaultNow(),
+  },
+  (t) => [uniqueIndex("price_survey_visitor_idx").on(t.visitorId)],
+);

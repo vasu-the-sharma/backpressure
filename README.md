@@ -100,6 +100,25 @@ payment:
 - a revenue index (price × join rate);
 - the Van Westendorp price points.
 
+Visitors in the EU, EEA, UK and Switzerland are asked before any test cookie
+is set. Until they agree, and for anyone who opts out on `/privacy`, the
+middleware shows the middle price, sets no cookies and leaves them out of the
+results.
+
+## Waitlist
+
+- **Email.** A new member gets one confirmation through Resend. Every email
+  carries RFC 8058 one-click unsubscribe headers and a leave link signed with
+  `AUTH_SECRET`. The link opens a page with a button, so mail scanners can't
+  unsubscribe anyone.
+- **Bots.** Signed-out sign-ups are screened with a hidden field, a minimum
+  fill time and a cap of five an hour per network. The network is a
+  daily-rotating HMAC of the IP, erased after 24 hours; the IP itself is never
+  stored.
+- **Admin.** `/admin/waitlist` lists members with the price each was shown,
+  exports CSV, and emails a plan's list. `{price}` in a message becomes each
+  person's quoted price.
+
 ## Stack
 
 Next.js 15 (App Router), React 19, TypeScript (strict), Tailwind CSS 4, React
@@ -122,7 +141,7 @@ npm run build        # runs pending DB migrations first when DATABASE_URL is set
 `DAILY_HORIZON=365 npm test` also verifies a year of daily puzzles, at about a
 second per day.
 
-### Accounts (optional)
+### Configuration (all optional)
 
 | Variable | Purpose |
 |---|---|
@@ -130,6 +149,8 @@ second per day.
 | `AUTH_SECRET` | Signs sessions. Generate one with `npx auth secret`. |
 | `AUTH_GOOGLE_ID`, `AUTH_GOOGLE_SECRET` | Google OAuth client, with redirect URI `https://<domain>/api/auth/callback/google` (and the `localhost:3000` equivalent). |
 | `ADMIN_EMAILS` | Comma-separated. These people become admins when they sign in. |
+| `CONTACT_EMAIL` | Shown on `/privacy` and `/terms` for privacy and support requests. |
+| `RESEND_API_KEY`, `EMAIL_FROM` | Waitlist email. `EMAIL_FROM` must be on a domain verified in Resend. |
 
 **Local setup.** Run `vercel env pull .env.local`, then `npm run db:migrate`.
 
@@ -139,13 +160,18 @@ Migrations in `drizzle/` apply automatically before every build.
 **Previews.** Turn on Neon's database branch per preview deployment, so pull
 request previews never migrate production.
 
+**Analytics.** Turn on Web Analytics in the Vercel project; the component is
+already in the layout. It sets no cookies, URLs are cut at `?` before
+sending, and `/admin` isn't counted. `sitemap.xml` and `robots.txt` are
+generated from the content registries.
+
 ## Project layout
 
 ```
 src/
   sim/         the engine: types, seeded RNG, metrics, tick loop, SLO scoring
   content/     systems, challenges, quizzes, daily puzzle, pricing (typed data and tests)
-  server/      grading, progress, daily results, the price test
+  server/      grading, progress, daily results, the price test, waitlist email and abuse checks
   db/          Drizzle schema (migrations live in /drizzle)
   app/         routes
   components/  UI, including PlaygroundCanvas, Simulator, CompareDemo and DailyGame
