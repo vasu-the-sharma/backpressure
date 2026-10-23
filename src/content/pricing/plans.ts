@@ -75,6 +75,18 @@ export function annualSaving(p: ProPrice): number {
   return Math.round((1 - p.annual / (p.monthly * 12)) * 100);
 }
 
+/**
+ * The price a waitlist member was quoted, as words ("$29 a month"), from what
+ * their row recorded (`pro-intl-b-monthly`, 2900). Null when no price was shown.
+ */
+export function quotedPrice(variant: string | null, cents: number | null): string | null {
+  if (!variant || cents === null) return null;
+  const [, segment, , period] = variant.split("-");
+  const currency: Currency = segment === "in" ? "INR" : "USD";
+  const amount = formatMoney(Math.round(cents / 100), currency);
+  return `${amount} ${period === "annual" ? "a year" : "a month"}`;
+}
+
 export interface PlanFeature {
   label: string;
   soon?: boolean;

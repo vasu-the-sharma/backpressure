@@ -3,6 +3,7 @@ import { LogoMark } from "@/components/Logo";
 import { SetupNotice } from "@/components/SetupNotice";
 import { isAuthConfigured, safeCallback } from "@/server/session";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 
 export const metadata: Metadata = { title: "Sign in" };
@@ -61,6 +62,23 @@ export default async function SignInPage({
       <p className="mt-4 text-xs text-fg-3">
         New here? Continuing creates your account. Everything on the site stays free to use without
         one.
+      </p>
+      <p className="mt-2 text-xs text-fg-3">
+        By continuing, you agree to the{" "}
+        <Link
+          href="/terms"
+          className="focus-ring rounded-sm underline decoration-line-strong underline-offset-2 hover:text-fg"
+        >
+          Terms
+        </Link>{" "}
+        and{" "}
+        <Link
+          href="/privacy"
+          className="focus-ring rounded-sm underline decoration-line-strong underline-offset-2 hover:text-fg"
+        >
+          Privacy policy
+        </Link>
+        .
       </p>
     </section>
   );

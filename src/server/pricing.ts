@@ -28,8 +28,14 @@ export interface SurveyAnswer {
   tooExpensive: number;
 }
 
-export async function recordSurvey(db: Db, s: SurveyAnswer): Promise<void> {
-  await db.insert(priceSurveys).values({ ...s, currency: PRO_PRICES[s.segment].a.currency });
+/** One answer per visitor; a second one is ignored. */
+export async function recordSurvey(db: Db, s: SurveyAnswer): Promise<{ saved: boolean }> {
+  const rows = await db
+    .insert(priceSurveys)
+    .values({ ...s, currency: PRO_PRICES[s.segment].a.currency })
+    .onConflictDoNothing()
+    .returning({ id: priceSurveys.id });
+  return { saved: rows.length > 0 };
 }
 
 export interface ArmResult {
