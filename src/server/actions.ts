@@ -33,6 +33,7 @@ import {
   quizAttemptInput,
 } from "./grade";
 import { recordSurvey } from "./pricing";
+import { setProAccess } from "./pro";
 import { insertChallengeRun, insertQuizAttempt } from "./progress";
 import { readWaitlistToken } from "./tokens";
 import { setRole } from "./users";
@@ -286,6 +287,29 @@ export async function changeRole(_prev: RoleFormState, form: FormData): Promise<
     };
   }
   revalidatePath("/admin");
+  revalidatePath(`/admin/users/${targetId}`);
+  return { done: true };
+}
+
+export type ProFormState = { error?: string; done?: boolean };
+
+/** Admin-only: give someone Pro for 30 or 365 more days, or take it away (form action). */
+export async function changeProAccess(_prev: ProFormState, form: FormData): Promise<ProFormState> {
+  const actorId = await currentUserId();
+  if (!actorId) return { error: "Sign in again to make changes." };
+  const targetId = String(form.get("userId") ?? "");
+  const days = Number(form.get("days"));
+  if (![0, 30, 365].includes(days)) return { error: "Choose how long." };
+
+  const result = await setProAccess(getDb(), actorId, targetId, days);
+  if (!result.ok) {
+    return {
+      error: {
+        "not-admin": "Only admins can change Pro access.",
+        "not-found": "That person no longer exists.",
+      }[result.reason],
+    };
+  }
   revalidatePath(`/admin/users/${targetId}`);
   return { done: true };
 }

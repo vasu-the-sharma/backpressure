@@ -1,6 +1,7 @@
 "use client";
 
 import { Waitlist } from "@/components/daily/Waitlist";
+import { CheckGlyph } from "@/components/ui";
 import {
   type Period,
   type ProPrice,
@@ -20,11 +21,14 @@ export function ProPlan({
   signedIn,
   waitlistOpen,
   survey,
+  pro,
 }: {
   price: ProPrice;
   signedIn: boolean;
   waitlistOpen: boolean;
   survey: boolean;
+  /** Already has Pro (a grant, or later a subscription): no waitlist to join. */
+  pro: boolean;
 }) {
   const [period, setPeriod] = useState<Period>("monthly");
   const save = annualSaving(price);
@@ -66,7 +70,12 @@ export function ProPlan({
       </p>
 
       <div className="mt-5">
-        {waitlistOpen ? (
+        {pro ? (
+          <p className="flex items-center gap-2 text-sm text-fg">
+            <CheckGlyph size={12} className="text-fg-2" />
+            You have Pro.
+          </p>
+        ) : waitlistOpen ? (
           <Waitlist
             source="pricing"
             signedIn={signedIn}
@@ -76,7 +85,7 @@ export function ProPlan({
         ) : (
           <p className="text-sm text-fg-3">The waitlist opens soon.</p>
         )}
-        <p className="mt-2 text-xs text-fg-3">No payment now. Pro opens soon.</p>
+        {!pro && <p className="mt-2 text-xs text-fg-3">No payment now. Pro opens soon.</p>}
       </div>
     </div>
   );

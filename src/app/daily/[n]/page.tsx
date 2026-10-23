@@ -20,8 +20,8 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
 }
 
 /**
- * A past daily. Admins can replay it (practice: nothing is recorded); for
- * everyone else it is a Pro preview.
+ * A past daily. Pro members (admins included) can replay it as practice:
+ * nothing is recorded. Everyone else sees what Pro unlocks.
  */
 export default async function PastDailyPage({ params }: PageProps) {
   const { n: raw } = await params;
@@ -32,7 +32,7 @@ export default async function PastDailyPage({ params }: PageProps) {
 
   const puzzle = getDailyPuzzle(n);
   const session = isAuthConfigured() ? await auth() : null;
-  const admin = session?.user?.role === "admin";
+  const pro = Boolean(session?.user?.pro);
 
   return (
     <article>
@@ -49,10 +49,10 @@ export default async function PastDailyPage({ params }: PageProps) {
         </h1>
         <p className="mt-1 text-xs text-fg-3">
           {dailyLabelDate(n)} · {TEMPLATE_LABEL[puzzle.template]} · Par {puzzle.par}
-          {admin && " · Practice: runs aren't recorded"}
+          {pro && " · Practice: runs aren't recorded"}
         </p>
       </header>
-      {admin ? (
+      {pro ? (
         <>
           <DailyGame
             n={n}
