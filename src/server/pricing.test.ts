@@ -53,9 +53,18 @@ describe("price test", () => {
       });
     await join("one@example.com", "monthly");
     await join("two@example.com", "annual");
-    // A Teams signup and an unpriced Pro signup don't count toward the test.
+    // A Teams signup, an unpriced Pro signup, and a visitor shown the price
+    // outside the test (no consent) don't count toward it.
     await addToWaitlist(db, { email: "team@example.com", plan: "teams", source: "pricing" });
     await addToWaitlist(db, { email: "old@example.com", plan: "pro", source: "daily-archive" });
+    await addToWaitlist(db, {
+      email: "eu@example.com",
+      plan: "pro",
+      source: "pricing",
+      period: "monthly",
+      priceVariant: "pro-intl-b-monthly",
+      priceCents: 2900,
+    });
 
     const r = await pricingResults(db);
     const a = r.intl.arms.find((x) => x.arm === "a");
@@ -110,5 +119,21 @@ describe("price test", () => {
     const r = await pricingResults(db);
     expect(r.intl.survey).toMatchObject({ used: 2, excluded: 1, opp: 15, pme: 30 });
     expect(r.in.survey.used).toBe(1);
+  });
+
+  it("keeps one survey answer per visitor", async () => {
+    const db = await testDb();
+    const answer = {
+      segment: "intl" as const,
+      tooCheap: 5,
+      cheap: 15,
+      expensive: 30,
+      tooExpensive: 45,
+    };
+    expect(await recordSurvey(db, { visitorId: "v1", ...answer })).toEqual({ saved: true });
+    expect(await recordSurvey(db, { visitorId: "v1", ...answer, cheap: 1 })).toEqual({
+      saved: false,
+    });
+    expect((await pricingResults(db)).intl.survey.used).toBe(1);
   });
 });

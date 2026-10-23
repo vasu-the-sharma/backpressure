@@ -2,6 +2,7 @@ import { auth } from "@/auth";
 import { CtaLink } from "@/components/CtaLink";
 import { Waitlist } from "@/components/daily/Waitlist";
 import { VerticalIcon } from "@/components/icons";
+import { ConsentBanner } from "@/components/pricing/Consent";
 import { PriceExposure } from "@/components/pricing/PriceExposure";
 import { ProPlan } from "@/components/pricing/ProPlan";
 import { CheckGlyph } from "@/components/ui";
@@ -73,7 +74,7 @@ export default async function PricingPage() {
         // biome-ignore lint/security/noDangerouslySetInnerHtml: static JSON-LD built from our own constants, with "<" escaped
         dangerouslySetInnerHTML={{ __html: jsonLd() }}
       />
-      <PriceExposure page="pricing" />
+      {visitor.randomized && <PriceExposure page="pricing" />}
 
       <header className="mb-10 flex flex-col items-center pt-6 text-center sm:pt-10">
         <h1 className="display rise-in text-4xl text-fg sm:text-6xl">Pricing</h1>
@@ -84,6 +85,8 @@ export default async function PricingPage() {
           Learn for free. Upgrade when you&apos;re getting ready for interviews.
         </p>
       </header>
+
+      {visitor.consent === "ask" && <ConsentBanner />}
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Plan
@@ -114,7 +117,12 @@ export default async function PricingPage() {
           blurb="For engineers preparing for system design interviews."
           features={PRO_FEATURES}
         >
-          <ProPlan price={price} signedIn={signedIn} waitlistOpen={waitlistOpen} />
+          <ProPlan
+            price={price}
+            signedIn={signedIn}
+            waitlistOpen={waitlistOpen}
+            survey={visitor.randomized}
+          />
         </Plan>
 
         <Plan

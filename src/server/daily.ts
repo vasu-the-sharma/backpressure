@@ -4,7 +4,7 @@ import { streakFrom } from "@/content/daily/streak";
 import type { Db } from "@/db";
 import { dailyResults, users, waitlist } from "@/db/schema";
 import { scoreDesign } from "@/sim/score";
-import { and, asc, count, desc, eq, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, isNotNull, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 import { designInput } from "./grade";
 
@@ -217,6 +217,7 @@ export interface WaitlistEntry {
   segment?: string | null;
   period?: string | null;
   visitorId?: string | null;
+  ipHash?: string | null;
 }
 
 /** Add someone to a plan's waitlist once; joining again is a no-op. */
@@ -227,6 +228,58 @@ export async function addToWaitlist(db: Db, entry: WaitlistEntry): Promise<{ add
     .onConflictDoNothing({ target: [waitlist.email, waitlist.plan] })
     .returning({ id: waitlist.id });
   return { added: rows.length > 0 };
+}
+
+/** Sign-ups from one network fingerprint since a moment (for the hourly cap). */
+export async function countRecentFromNetwork(db: Db, ipHash: string, since: Date): Promise<number> {
+  const [row] = await db
+    .select({ n: count() })
+    .from(waitlist)
+    .where(and(eq(waitlist.ipHash, ipHash), gte(waitlist.createdAt, since)));
+  return row?.n ?? 0;
+}
+
+/** Erase network fingerprints older than a moment; the hourly cap never needs them again. */
+export async function forgetNetworkFingerprints(db: Db, before: Date): Promise<void> {
+  await db
+    .update(waitlist)
+    .set({ ipHash: null })
+    .where(and(isNotNull(waitlist.ipHash), lt(waitlist.createdAt, before)));
+}
+
+/** Remove an address from every waitlist. Returns how many entries went. */
+export async function leaveWaitlist(db: Db, email: string): Promise<number> {
+  const rows = await db
+    .delete(waitlist)
+    .where(eq(waitlist.email, email.trim().toLowerCase()))
+    .returning({ id: waitlist.id });
+  return rows.length;
+}
+
+/** Everyone on one plan's waitlist (or all of them), oldest first, with the price each was quoted. */
+export async function waitlistEntries(db: Db, plan?: string) {
+  return db
+    .select({
+      email: waitlist.email,
+      plan: waitlist.plan,
+      source: waitlist.source,
+      priceVariant: waitlist.priceVariant,
+      priceCents: waitlist.priceCents,
+      period: waitlist.period,
+      createdAt: waitlist.createdAt,
+    })
+    .from(waitlist)
+    .where(plan ? eq(waitlist.plan, plan) : undefined)
+    .orderBy(asc(waitlist.createdAt));
+}
+
+/** How many people are waiting for each plan. */
+export async function waitlistCounts(db: Db): Promise<Record<string, number>> {
+  const rows = await db
+    .select({ plan: waitlist.plan, n: count() })
+    .from(waitlist)
+    .groupBy(waitlist.plan);
+  return Object.fromEntries(rows.map((r) => [r.plan, Number(r.n)]));
 }
 
 /** Headline numbers for the admin page: today's daily and the waitlist. */
