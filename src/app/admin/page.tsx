@@ -67,12 +67,20 @@ export default async function AdminPage({
           <h2 id="growth" className="text-base font-medium text-fg">
             Daily puzzle and waitlist
           </h2>
-          <Link
-            href="/admin/pricing"
-            className="focus-ring rounded-sm text-xs text-fg-2 underline decoration-line-strong underline-offset-2 hover:text-fg"
-          >
-            Price test results
-          </Link>
+          <div className="flex gap-4">
+            <Link
+              href="/admin/waitlist"
+              className="focus-ring rounded-sm text-xs text-fg-2 underline decoration-line-strong underline-offset-2 hover:text-fg"
+            >
+              Waitlist
+            </Link>
+            <Link
+              href="/admin/pricing"
+              className="focus-ring rounded-sm text-xs text-fg-2 underline decoration-line-strong underline-offset-2 hover:text-fg"
+            >
+              Price test results
+            </Link>
+          </div>
         </div>
         <p className="mt-1 text-xs text-fg-3">
           <span className="tnum text-fg">{daily.solvedToday}</span> solved today ·{" "}
