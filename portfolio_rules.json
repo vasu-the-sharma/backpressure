@@ -1,0 +1,11 @@
+{
+  "global_settings": {
+    "track_ath": true,
+    "track_atl": true,
+    "ath_buffer_pct": 0.5,
+    "atl_buffer_pct": 1.0,
+    "default_gtt_order_qty": 1
+  },
+  "benchmarks_cache": {},
+  "custom_targets": {}
+}
